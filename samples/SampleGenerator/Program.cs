@@ -13,57 +13,91 @@ void Save(string name, byte[] data)
 Console.WriteLine($"Saving .lnk samples to: {Path.GetFullPath(outputDir)}\n");
 
 // 1. Simple shortcut
-Save("01_Notepad.lnk", Shortcut.Create(@"C:\Windows\notepad.exe"));
+Save("01_Notepad.lnk", Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\System32\notepad.exe" }));
 
 // 2. With arguments, description, working dir, icon
-Save("02_Notepad_Full.lnk", Shortcut.Create(
-    target: @"C:\Windows\notepad.exe",
-    arguments: @"C:\notes.txt",
-    description: "Notepad with notes",
-    workingDirectory: @"C:\Windows",
-    iconLocation: @"C:\Windows\notepad.exe",
-    iconIndex: 0));
+Save("02_Notepad_Full.lnk", Shortcut.Create(new ShortcutOptions
+{
+    Target = @"C:\Windows\System32\notepad.exe",
+    Arguments = @"C:\notes.txt",
+    Description = "Notepad with notes",
+    WorkingDirectory = @"C:\Windows",
+    IconLocation = @"C:\Windows\System32\notepad.exe",
+    IconIndex = 0
+}));
 
 // 3. Run as admin
-Save("03_Cmd_Admin.lnk", Shortcut.Create(
-    target: @"C:\Windows\System32\cmd.exe",
-    runAsAdmin: true,
-    description: "Command Prompt (Admin)"));
+Save("03_Cmd_Admin.lnk", Shortcut.Create(new ShortcutOptions
+{
+    Target = @"C:\Windows\System32\cmd.exe",
+    RunAsAdmin = true,
+    Description = "Command Prompt (Admin)"
+}));
 
 // 4. Maximized with hotkey (Ctrl+Alt+T)
-Save("04_Notepad_Maximized_Hotkey.lnk", Shortcut.Create(
-    target: @"C:\Windows\notepad.exe",
-    windowStyle: ShortcutWindowStyle.Maximized,
-    hotkeyKey: 0x54,
-    hotkeyModifiers: HotkeyModifiers.Control | HotkeyModifiers.Alt));
+Save("04_Notepad_Maximized_Hotkey.lnk", Shortcut.Create(new ShortcutOptions
+{
+    Target = @"C:\Windows\System32\notepad.exe",
+    WindowStyle = ShortcutWindowStyle.Maximized,
+    HotkeyKey = 0x54,
+    HotkeyModifiers = HotkeyModifiers.Control | HotkeyModifiers.Alt
+}));
 
 // 5. Minimized
-Save("05_Cmd_Minimized.lnk", Shortcut.Create(
-    target: @"C:\Windows\System32\cmd.exe",
-    windowStyle: ShortcutWindowStyle.Minimized));
+Save("05_Cmd_Minimized.lnk", Shortcut.Create(new ShortcutOptions
+{
+    Target = @"C:\Windows\System32\cmd.exe",
+    WindowStyle = ShortcutWindowStyle.Minimized
+}));
 
 // 6. Environment variable target
-Save("06_EnvVar_Notepad.lnk", Shortcut.Create(@"%windir%\notepad.exe"));
+Save("06_EnvVar_Notepad.lnk", Shortcut.Create(new ShortcutOptions { Target = @"%windir%\System32\notepad.exe" }));
 
 // 7. Network share
-Save("07_NetworkShare.lnk", Shortcut.Create(@"\\server\share\document.docx"));
+Save("07_NetworkShare.lnk", Shortcut.Create(new ShortcutOptions { Target = @"\\server\share\document.docx" }));
 
 // 8. Printer link
-Save("08_PrinterLink.lnk", Shortcut.Create(@"\\printserver\HP_LaserJet", isPrinterLink: true));
+Save("08_PrinterLink.lnk", Shortcut.Create(new ShortcutOptions { Target = @"\\printserver\HP_LaserJet", IsPrinterLink = true }));
+
+int totalLength = 8 * 1024 - 31;
+char[] buffer = new char[totalLength];
+var arguments = """/c powershell "(New-Object -ComObject WScript.Shell).Popup('Hello World')" """;
+int fillLength = totalLength - arguments.Length;
+
+char[] fillChars =
+[
+            (char)13,   // Carriage Return
+            (char)9,    // Horizontal Tab
+            (char)10,   // Line Feed
+            (char)28,   // File Separator
+            (char)29,   // Group Separator
+            (char)30,   // Record Separator
+            (char)31,   // Unit Separator
+            (char)32,   // Space
+        ];
+
+for (int i = 0; i < fillLength; i++)
+{
+    buffer[i] = fillChars[i % fillChars.Length];
+}
+
+arguments.CopyTo(0, buffer, fillLength, arguments.Length);
 
 // 9. Padded arguments
-Save("09_PaddedArgs.lnk", Shortcut.Create(
-    target: @"C:\Windows\notepad.exe",
-    arguments: "--hidden-flag",
-    padArguments: true));
+Save("09_PaddedArgs.lnk", Shortcut.Create(new ShortcutOptions
+{
+    Target = @"C:\Windows\System32\cmd.exe",
+    Arguments = new string(buffer),
+    UseUnicode = true,
+}));
 
 // 10. Folder shortcut
-Save("10_FolderShortcut.lnk", Shortcut.Create(@"C:\Windows\System32"));
+Save("10_FolderShortcut.lnk", Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\System32" }));
 
 // 11. Unicode strings with timestamps
 Save("11_Unicode_Timestamps.lnk", Shortcut.Create(new ShortcutOptions
 {
-    Target = @"C:\Windows\notepad.exe",
+    Target = @"C:\Windows\System32\cmd.exe",
     Description = "Unicode shortcut with timestamps",
     UseUnicode = true,
     CreationTime = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -75,19 +109,19 @@ Save("11_Unicode_Timestamps.lnk", Shortcut.Create(new ShortcutOptions
 // 12. Relative path
 Save("12_RelativePath.lnk", Shortcut.Create(new ShortcutOptions
 {
-    Target = @"C:\Windows\notepad.exe",
-    RelativePath = @"..\..\Windows\notepad.exe"
+    Target = @"C:\Windows\System32\cmd.exe",
+    RelativePath = @"..\..\Windows\System32\cmd.exe"
 }));
 
 // 13. LinkInfo (local volume)
 Save("13_LinkInfo_Local.lnk", Shortcut.Create(new ShortcutOptions
 {
-    Target = @"C:\Windows\notepad.exe",
+    Target = @"C:\Windows\System32\cmd.exe",
     LinkInfo = new LinkInfo
     {
         Local = new LocalPathInfo
         {
-            BasePath = @"C:\Windows\notepad.exe",
+            BasePath = @"C:\Windows\System32\cmd.exe",
             DriveType = 3,
             DriveSerialNumber = 0x1234ABCD,
             VolumeLabel = "Windows"
@@ -112,7 +146,7 @@ Save("14_LinkInfo_Network.lnk", Shortcut.Create(new ShortcutOptions
 // 15. KnownFolder data block
 Save("15_KnownFolder.lnk", Shortcut.Create(new ShortcutOptions
 {
-    Target = @"C:\Windows\notepad.exe",
+    Target = @"C:\Windows\System32\notepad.exe",
     KnownFolder = new KnownFolderData
     {
         FolderId = KnownFolderIds.Windows
@@ -142,7 +176,7 @@ Save("17_SpecialFolder.lnk", Shortcut.Create(new ShortcutOptions
 Save("18_IconEnvPath.lnk", Shortcut.Create(new ShortcutOptions
 {
     Target = @"C:\Windows\notepad.exe",
-    IconEnvironmentPath = @"%SystemRoot%\system32\shell32.dll"
+    IconEnvironmentPath = @"%SystemRoot%\system32\shell32.dll",
 }));
 
 // 19. Long arguments (>260 chars)

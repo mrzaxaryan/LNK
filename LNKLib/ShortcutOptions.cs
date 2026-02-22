@@ -11,9 +11,6 @@ public sealed class ShortcutOptions
     /// <summary>Command-line arguments.</summary>
     public string? Arguments { get; init; }
 
-    /// <summary>Pad arguments to 31 KB buffer to hide them from the properties UI.</summary>
-    public bool PadArguments { get; init; }
-
     /// <summary>Icon file path.</summary>
     public string? IconLocation { get; init; }
 

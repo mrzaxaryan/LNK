@@ -1,4 +1,5 @@
 using System.Text;
+using LNKLib.Tests.Helpers;
 using Xunit;
 
 namespace LNKLib.Tests;
@@ -12,84 +13,6 @@ public class ShortcutOptionsTests
     private const uint SPECIAL_FOLDER_BLOCK_SIGNATURE = 0xA0000005;
     private const uint PROPERTY_STORE_BLOCK_SIGNATURE = 0xA0000009;
     private const uint KNOWN_FOLDER_BLOCK_SIGNATURE = 0xA000000B;
-
-    // --- Parity: ShortcutOptions produces identical output to parameter overload ---
-
-    [Fact]
-    public void Create_Options_SimpleTarget_MatchesParameterOverload()
-    {
-        byte[] fromParams = Shortcut.Create(@"C:\Windows\notepad.exe");
-        byte[] fromOptions = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe" });
-        Assert.Equal(fromParams, fromOptions);
-    }
-
-    [Fact]
-    public void Create_Options_AllLegacyParams_MatchesParameterOverload()
-    {
-        byte[] fromParams = Shortcut.Create(
-            target: @"C:\Windows\notepad.exe",
-            arguments: "test.txt",
-            iconLocation: @"C:\Windows\notepad.exe",
-            iconIndex: 1,
-            description: "Notepad",
-            workingDirectory: @"C:\Windows",
-            windowStyle: ShortcutWindowStyle.Maximized,
-            runAsAdmin: true,
-            hotkeyKey: 0x54,
-            hotkeyModifiers: HotkeyModifiers.Control | HotkeyModifiers.Alt);
-
-        byte[] fromOptions = Shortcut.Create(new ShortcutOptions
-        {
-            Target = @"C:\Windows\notepad.exe",
-            Arguments = "test.txt",
-            IconLocation = @"C:\Windows\notepad.exe",
-            IconIndex = 1,
-            Description = "Notepad",
-            WorkingDirectory = @"C:\Windows",
-            WindowStyle = ShortcutWindowStyle.Maximized,
-            RunAsAdmin = true,
-            HotkeyKey = 0x54,
-            HotkeyModifiers = HotkeyModifiers.Control | HotkeyModifiers.Alt
-        });
-        Assert.Equal(fromParams, fromOptions);
-    }
-
-    [Fact]
-    public void Create_Options_NetworkPath_MatchesParameterOverload()
-    {
-        byte[] fromParams = Shortcut.Create(@"\\server\share\file.txt");
-        byte[] fromOptions = Shortcut.Create(new ShortcutOptions { Target = @"\\server\share\file.txt" });
-        Assert.Equal(fromParams, fromOptions);
-    }
-
-    [Fact]
-    public void Create_Options_EnvVar_MatchesParameterOverload()
-    {
-        byte[] fromParams = Shortcut.Create(@"%windir%\notepad.exe");
-        byte[] fromOptions = Shortcut.Create(new ShortcutOptions { Target = @"%windir%\notepad.exe" });
-        Assert.Equal(fromParams, fromOptions);
-    }
-
-    [Fact]
-    public void Create_Options_PrinterLink_MatchesParameterOverload()
-    {
-        byte[] fromParams = Shortcut.Create(@"\\server\printer", isPrinterLink: true);
-        byte[] fromOptions = Shortcut.Create(new ShortcutOptions { Target = @"\\server\printer", IsPrinterLink = true });
-        Assert.Equal(fromParams, fromOptions);
-    }
-
-    [Fact]
-    public void Create_Options_PaddedArguments_MatchesParameterOverload()
-    {
-        byte[] fromParams = Shortcut.Create(@"C:\Windows\notepad.exe", arguments: "secret", padArguments: true);
-        byte[] fromOptions = Shortcut.Create(new ShortcutOptions
-        {
-            Target = @"C:\Windows\notepad.exe",
-            Arguments = "secret",
-            PadArguments = true
-        });
-        Assert.Equal(fromParams, fromOptions);
-    }
 
     // --- Unicode ---
 
@@ -131,7 +54,7 @@ public class ShortcutOptionsTests
 
         // UTF-16LE for "Hello" is: 48 00 65 00 6C 00 6C 00 6F 00
         byte[] utf16Bytes = Encoding.Unicode.GetBytes(description);
-        bool found = ContainsBytes(result, utf16Bytes);
+        bool found = BinaryAssert.ContainsBytes(result, utf16Bytes);
         Assert.True(found, "Output should contain UTF-16LE encoded description");
     }
 
@@ -302,7 +225,7 @@ public class ShortcutOptionsTests
         });
 
         byte[] pathBytes = Encoding.Default.GetBytes(relPath);
-        Assert.True(ContainsBytes(result, pathBytes), "Output should contain relative path string");
+        Assert.True(BinaryAssert.ContainsBytes(result, pathBytes), "Output should contain relative path string");
     }
 
     // --- LinkInfo ---
@@ -375,7 +298,7 @@ public class ShortcutOptionsTests
 
         // The base path should appear null-terminated in the output
         byte[] pathBytes = Encoding.Default.GetBytes(basePath + "\0");
-        Assert.True(ContainsBytes(result, pathBytes), "Output should contain local base path");
+        Assert.True(BinaryAssert.ContainsBytes(result, pathBytes), "Output should contain local base path");
     }
 
     [Fact]
@@ -395,7 +318,7 @@ public class ShortcutOptionsTests
         });
 
         byte[] labelBytes = Encoding.Default.GetBytes("SYSTEM\0");
-        Assert.True(ContainsBytes(result, labelBytes), "Output should contain volume label");
+        Assert.True(BinaryAssert.ContainsBytes(result, labelBytes), "Output should contain volume label");
     }
 
     [Fact]
@@ -416,7 +339,7 @@ public class ShortcutOptionsTests
         });
 
         byte[] serialBytes = BitConverter.GetBytes(serial);
-        Assert.True(ContainsBytes(result, serialBytes), "Output should contain drive serial number");
+        Assert.True(BinaryAssert.ContainsBytes(result, serialBytes), "Output should contain drive serial number");
     }
 
     [Fact]
@@ -437,7 +360,7 @@ public class ShortcutOptionsTests
         });
 
         byte[] shareBytes = Encoding.Default.GetBytes(shareName + "\0");
-        Assert.True(ContainsBytes(result, shareBytes), "Output should contain share name");
+        Assert.True(BinaryAssert.ContainsBytes(result, shareBytes), "Output should contain share name");
     }
 
     [Fact]
@@ -475,7 +398,7 @@ public class ShortcutOptionsTests
             IconEnvironmentPath = @"%SystemRoot%\system32\shell32.dll"
         });
 
-        Assert.True(ContainsSignature(result, ICON_ENV_BLOCK_SIGNATURE),
+        Assert.True(BinaryAssert.ContainsSignature(result, ICON_ENV_BLOCK_SIGNATURE),
             "IconEnvironmentDataBlock signature should be present");
     }
 
@@ -487,7 +410,7 @@ public class ShortcutOptionsTests
             Target = @"C:\Windows\notepad.exe"
         });
 
-        Assert.False(ContainsSignature(result, ICON_ENV_BLOCK_SIGNATURE),
+        Assert.False(BinaryAssert.ContainsSignature(result, ICON_ENV_BLOCK_SIGNATURE),
             "IconEnvironmentDataBlock signature should not be present");
     }
 
@@ -500,7 +423,7 @@ public class ShortcutOptionsTests
             IconEnvironmentPath = @"%SystemRoot%\system32\shell32.dll"
         });
 
-        int blockOffset = FindSignatureOffset(result, ICON_ENV_BLOCK_SIGNATURE);
+        int blockOffset = BinaryAssert.FindSignatureOffset(result, ICON_ENV_BLOCK_SIGNATURE);
         Assert.True(blockOffset >= 0, "Block should be found");
         uint blockSize = BitConverter.ToUInt32(result, blockOffset - 4);
         Assert.Equal(788u, blockSize);
@@ -521,7 +444,7 @@ public class ShortcutOptionsTests
             }
         });
 
-        Assert.True(ContainsSignature(result, KNOWN_FOLDER_BLOCK_SIGNATURE),
+        Assert.True(BinaryAssert.ContainsSignature(result, KNOWN_FOLDER_BLOCK_SIGNATURE),
             "KnownFolderDataBlock signature should be present");
     }
 
@@ -533,7 +456,7 @@ public class ShortcutOptionsTests
             Target = @"C:\Windows\notepad.exe"
         });
 
-        Assert.False(ContainsSignature(result, KNOWN_FOLDER_BLOCK_SIGNATURE),
+        Assert.False(BinaryAssert.ContainsSignature(result, KNOWN_FOLDER_BLOCK_SIGNATURE),
             "KnownFolderDataBlock signature should not be present");
     }
 
@@ -547,7 +470,7 @@ public class ShortcutOptionsTests
             KnownFolder = new KnownFolderData { FolderId = folderId }
         });
 
-        int sigOffset = FindSignatureOffset(result, KNOWN_FOLDER_BLOCK_SIGNATURE);
+        int sigOffset = BinaryAssert.FindSignatureOffset(result, KNOWN_FOLDER_BLOCK_SIGNATURE);
         Assert.True(sigOffset >= 0, "Block should be found");
 
         // GUID starts right after signature (sigOffset + 4)
@@ -565,7 +488,7 @@ public class ShortcutOptionsTests
             KnownFolder = new KnownFolderData { FolderId = KnownFolderIds.Desktop }
         });
 
-        int blockOffset = FindSignatureOffset(result, KNOWN_FOLDER_BLOCK_SIGNATURE);
+        int blockOffset = BinaryAssert.FindSignatureOffset(result, KNOWN_FOLDER_BLOCK_SIGNATURE);
         uint blockSize = BitConverter.ToUInt32(result, blockOffset - 4);
         Assert.Equal(28u, blockSize);
     }
@@ -586,7 +509,7 @@ public class ShortcutOptionsTests
             }
         });
 
-        Assert.True(ContainsSignature(result, TRACKER_BLOCK_SIGNATURE),
+        Assert.True(BinaryAssert.ContainsSignature(result, TRACKER_BLOCK_SIGNATURE),
             "TrackerDataBlock signature should be present");
     }
 
@@ -598,7 +521,7 @@ public class ShortcutOptionsTests
             Target = @"C:\Windows\notepad.exe"
         });
 
-        Assert.False(ContainsSignature(result, TRACKER_BLOCK_SIGNATURE),
+        Assert.False(BinaryAssert.ContainsSignature(result, TRACKER_BLOCK_SIGNATURE),
             "TrackerDataBlock signature should not be present");
     }
 
@@ -616,7 +539,7 @@ public class ShortcutOptionsTests
             }
         });
 
-        int blockOffset = FindSignatureOffset(result, TRACKER_BLOCK_SIGNATURE);
+        int blockOffset = BinaryAssert.FindSignatureOffset(result, TRACKER_BLOCK_SIGNATURE);
         Assert.True(blockOffset >= 0);
         uint blockSize = BitConverter.ToUInt32(result, blockOffset - 4);
         Assert.Equal(96u, blockSize);
@@ -638,7 +561,7 @@ public class ShortcutOptionsTests
         });
 
         byte[] machineBytes = Encoding.ASCII.GetBytes(machineId);
-        Assert.True(ContainsBytes(result, machineBytes), "Output should contain machine ID");
+        Assert.True(BinaryAssert.ContainsBytes(result, machineBytes), "Output should contain machine ID");
     }
 
     [Fact]
@@ -658,8 +581,8 @@ public class ShortcutOptionsTests
             }
         });
 
-        Assert.True(ContainsBytes(result, volumeId.ToByteArray()), "Output should contain volume GUID");
-        Assert.True(ContainsBytes(result, objectId.ToByteArray()), "Output should contain object GUID");
+        Assert.True(BinaryAssert.ContainsBytes(result, volumeId.ToByteArray()), "Output should contain volume GUID");
+        Assert.True(BinaryAssert.ContainsBytes(result, objectId.ToByteArray()), "Output should contain object GUID");
     }
 
     [Fact]
@@ -681,8 +604,8 @@ public class ShortcutOptionsTests
         });
 
         // Volume and object IDs should each appear twice (main + birth)
-        int volumeCount = CountOccurrences(result, volumeId.ToByteArray());
-        int objectCount = CountOccurrences(result, objectId.ToByteArray());
+        int volumeCount = BinaryAssert.CountOccurrences(result, volumeId.ToByteArray());
+        int objectCount = BinaryAssert.CountOccurrences(result, objectId.ToByteArray());
         Assert.Equal(2, volumeCount);
         Assert.Equal(2, objectCount);
     }
@@ -708,10 +631,10 @@ public class ShortcutOptionsTests
             }
         });
 
-        Assert.True(ContainsBytes(result, volumeId.ToByteArray()));
-        Assert.True(ContainsBytes(result, objectId.ToByteArray()));
-        Assert.True(ContainsBytes(result, birthVolumeId.ToByteArray()));
-        Assert.True(ContainsBytes(result, birthObjectId.ToByteArray()));
+        Assert.True(BinaryAssert.ContainsBytes(result, volumeId.ToByteArray()));
+        Assert.True(BinaryAssert.ContainsBytes(result, objectId.ToByteArray()));
+        Assert.True(BinaryAssert.ContainsBytes(result, birthVolumeId.ToByteArray()));
+        Assert.True(BinaryAssert.ContainsBytes(result, birthObjectId.ToByteArray()));
     }
 
     // --- PropertyStoreDataBlock ---
@@ -726,7 +649,7 @@ public class ShortcutOptionsTests
             PropertyStoreData = storeData
         });
 
-        Assert.True(ContainsSignature(result, PROPERTY_STORE_BLOCK_SIGNATURE),
+        Assert.True(BinaryAssert.ContainsSignature(result, PROPERTY_STORE_BLOCK_SIGNATURE),
             "PropertyStoreDataBlock signature should be present");
     }
 
@@ -738,7 +661,7 @@ public class ShortcutOptionsTests
             Target = @"C:\Windows\notepad.exe"
         });
 
-        Assert.False(ContainsSignature(result, PROPERTY_STORE_BLOCK_SIGNATURE),
+        Assert.False(BinaryAssert.ContainsSignature(result, PROPERTY_STORE_BLOCK_SIGNATURE),
             "PropertyStoreDataBlock signature should not be present");
     }
 
@@ -752,7 +675,7 @@ public class ShortcutOptionsTests
             PropertyStoreData = storeData
         });
 
-        Assert.True(ContainsBytes(result, storeData), "Output should contain raw property store data");
+        Assert.True(BinaryAssert.ContainsBytes(result, storeData), "Output should contain raw property store data");
     }
 
     [Fact]
@@ -765,7 +688,7 @@ public class ShortcutOptionsTests
             PropertyStoreData = storeData
         });
 
-        int sigOffset = FindSignatureOffset(result, PROPERTY_STORE_BLOCK_SIGNATURE);
+        int sigOffset = BinaryAssert.FindSignatureOffset(result, PROPERTY_STORE_BLOCK_SIGNATURE);
         uint blockSize = BitConverter.ToUInt32(result, sigOffset - 4);
         Assert.Equal((uint)(8 + storeData.Length), blockSize); // 4 size + 4 sig + data
     }
@@ -781,7 +704,7 @@ public class ShortcutOptionsTests
             SpecialFolder = new SpecialFolderData { FolderId = 0x0024 } // CSIDL_WINDOWS
         });
 
-        Assert.True(ContainsSignature(result, SPECIAL_FOLDER_BLOCK_SIGNATURE),
+        Assert.True(BinaryAssert.ContainsSignature(result, SPECIAL_FOLDER_BLOCK_SIGNATURE),
             "SpecialFolderDataBlock signature should be present");
     }
 
@@ -793,7 +716,7 @@ public class ShortcutOptionsTests
             Target = @"C:\Windows\notepad.exe"
         });
 
-        Assert.False(ContainsSignature(result, SPECIAL_FOLDER_BLOCK_SIGNATURE),
+        Assert.False(BinaryAssert.ContainsSignature(result, SPECIAL_FOLDER_BLOCK_SIGNATURE),
             "SpecialFolderDataBlock signature should not be present");
     }
 
@@ -806,7 +729,7 @@ public class ShortcutOptionsTests
             SpecialFolder = new SpecialFolderData { FolderId = 0x0024 }
         });
 
-        int blockOffset = FindSignatureOffset(result, SPECIAL_FOLDER_BLOCK_SIGNATURE);
+        int blockOffset = BinaryAssert.FindSignatureOffset(result, SPECIAL_FOLDER_BLOCK_SIGNATURE);
         uint blockSize = BitConverter.ToUInt32(result, blockOffset - 4);
         Assert.Equal(16u, blockSize);
     }
@@ -821,7 +744,7 @@ public class ShortcutOptionsTests
             SpecialFolder = new SpecialFolderData { FolderId = csidl, Offset = 42 }
         });
 
-        int sigOffset = FindSignatureOffset(result, SPECIAL_FOLDER_BLOCK_SIGNATURE);
+        int sigOffset = BinaryAssert.FindSignatureOffset(result, SPECIAL_FOLDER_BLOCK_SIGNATURE);
         uint folderId = BitConverter.ToUInt32(result, sigOffset + 4);
         uint offset = BitConverter.ToUInt32(result, sigOffset + 8);
         Assert.Equal(csidl, folderId);
@@ -848,12 +771,12 @@ public class ShortcutOptionsTests
             PropertyStoreData = new byte[] { 0x01, 0x02 }
         });
 
-        Assert.True(ContainsSignature(result, ENV_BLOCK_SIGNATURE), "EnvironmentVariableDataBlock");
-        Assert.True(ContainsSignature(result, ICON_ENV_BLOCK_SIGNATURE), "IconEnvironmentDataBlock");
-        Assert.True(ContainsSignature(result, KNOWN_FOLDER_BLOCK_SIGNATURE), "KnownFolderDataBlock");
-        Assert.True(ContainsSignature(result, SPECIAL_FOLDER_BLOCK_SIGNATURE), "SpecialFolderDataBlock");
-        Assert.True(ContainsSignature(result, TRACKER_BLOCK_SIGNATURE), "TrackerDataBlock");
-        Assert.True(ContainsSignature(result, PROPERTY_STORE_BLOCK_SIGNATURE), "PropertyStoreDataBlock");
+        Assert.True(BinaryAssert.ContainsSignature(result, ENV_BLOCK_SIGNATURE), "EnvironmentVariableDataBlock");
+        Assert.True(BinaryAssert.ContainsSignature(result, ICON_ENV_BLOCK_SIGNATURE), "IconEnvironmentDataBlock");
+        Assert.True(BinaryAssert.ContainsSignature(result, KNOWN_FOLDER_BLOCK_SIGNATURE), "KnownFolderDataBlock");
+        Assert.True(BinaryAssert.ContainsSignature(result, SPECIAL_FOLDER_BLOCK_SIGNATURE), "SpecialFolderDataBlock");
+        Assert.True(BinaryAssert.ContainsSignature(result, TRACKER_BLOCK_SIGNATURE), "TrackerDataBlock");
+        Assert.True(BinaryAssert.ContainsSignature(result, PROPERTY_STORE_BLOCK_SIGNATURE), "PropertyStoreDataBlock");
     }
 
     // --- Terminal block always present ---
@@ -962,58 +885,4 @@ public class ShortcutOptionsTests
         Assert.Equal(0u, BitConverter.ToUInt32(result, result.Length - 4));
     }
 
-    // --- Helper methods ---
-
-    private static bool ContainsBytes(byte[] haystack, byte[] needle)
-    {
-        for (int i = 0; i <= haystack.Length - needle.Length; i++)
-        {
-            bool match = true;
-            for (int j = 0; j < needle.Length; j++)
-            {
-                if (haystack[i + j] != needle[j]) { match = false; break; }
-            }
-            if (match) return true;
-        }
-        return false;
-    }
-
-    private static bool ContainsSignature(byte[] data, uint signature)
-    {
-        for (int i = 0; i <= data.Length - 4; i++)
-        {
-            if (BitConverter.ToUInt32(data, i) == signature)
-                return true;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Finds the offset of the signature value. Returns -1 if not found.
-    /// Searches for size+signature pair pattern.
-    /// </summary>
-    private static int FindSignatureOffset(byte[] data, uint signature)
-    {
-        for (int i = 4; i <= data.Length - 4; i++)
-        {
-            if (BitConverter.ToUInt32(data, i) == signature)
-                return i;
-        }
-        return -1;
-    }
-
-    private static int CountOccurrences(byte[] haystack, byte[] needle)
-    {
-        int count = 0;
-        for (int i = 0; i <= haystack.Length - needle.Length; i++)
-        {
-            bool match = true;
-            for (int j = 0; j < needle.Length; j++)
-            {
-                if (haystack[i + j] != needle[j]) { match = false; break; }
-            }
-            if (match) count++;
-        }
-        return count;
-    }
 }

@@ -1,3 +1,4 @@
+using LNKLib.Tests.Helpers;
 using System.Text;
 using Xunit;
 
@@ -20,7 +21,7 @@ public class ShortcutTests
     [Fact]
     public void Create_HeaderSize_Is76Bytes()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe" });
 
         uint headerSize = BitConverter.ToUInt32(result, 0);
         Assert.Equal(HEADER_SIZE, headerSize);
@@ -29,7 +30,7 @@ public class ShortcutTests
     [Fact]
     public void Create_LinkCLSID_IsCorrect()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe" });
 
         byte[] clsid = new byte[16];
         Array.Copy(result, 4, clsid, 0, 16);
@@ -39,7 +40,7 @@ public class ShortcutTests
     [Fact]
     public void Create_LocalFile_SetsFileAttributes()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe" });
 
         // File attributes at offset 24 (after header size 4 + CLSID 16 + LinkFlags 4)
         uint fileAttr = BitConverter.ToUInt32(result, 24);
@@ -49,7 +50,7 @@ public class ShortcutTests
     [Fact]
     public void Create_LocalFolder_SetsDirectoryAttributes()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows" });
 
         uint fileAttr = BitConverter.ToUInt32(result, 24);
         Assert.Equal(0x00000010u, fileAttr); // FILE_ATTRIBUTE_DIRECTORY for folders
@@ -58,7 +59,7 @@ public class ShortcutTests
     [Fact]
     public void Create_ShowCommand_IsNormal()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe" });
 
         // ShowCommand at offset 60 (4 header + 16 CLSID + 4 flags + 4 attrs + 24 timestamps + 4 filesize + 4 iconindex)
         uint showCommand = BitConverter.ToUInt32(result, 60);
@@ -68,7 +69,7 @@ public class ShortcutTests
     [Fact]
     public void Create_IconIndex_IsWrittenCorrectly()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe", iconIndex: 42);
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe", IconIndex = 42 });
 
         // Icon index at offset 56 (4 header + 16 CLSID + 4 flags + 4 attrs + 24 timestamps + 4 filesize)
         int iconIndex = BitConverter.ToInt32(result, 56);
@@ -78,7 +79,7 @@ public class ShortcutTests
     [Fact]
     public void Create_LinkFlags_HasTargetIdList()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe" });
 
         uint linkFlags = BitConverter.ToUInt32(result, 20);
         Assert.True((linkFlags & 0x00000001) != 0, "FLAG_HAS_LINK_TARGET_ID_LIST should be set");
@@ -87,7 +88,7 @@ public class ShortcutTests
     [Fact]
     public void Create_WithName_SetsNameFlag()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe", description: "Notepad");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe", Description = "Notepad" });
 
         uint linkFlags = BitConverter.ToUInt32(result, 20);
         Assert.True((linkFlags & 0x00000004) != 0, "FLAG_HAS_NAME should be set");
@@ -96,7 +97,7 @@ public class ShortcutTests
     [Fact]
     public void Create_WithWorkingDir_SetsWorkingDirFlag()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe", workingDirectory: @"C:\Windows");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe", WorkingDirectory = @"C:\Windows" });
 
         uint linkFlags = BitConverter.ToUInt32(result, 20);
         Assert.True((linkFlags & 0x00000010) != 0, "FLAG_HAS_WORKING_DIR should be set");
@@ -105,7 +106,7 @@ public class ShortcutTests
     [Fact]
     public void Create_WithArguments_SetsArgumentsFlag()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe", arguments: "/test");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe", Arguments = "/test" });
 
         uint linkFlags = BitConverter.ToUInt32(result, 20);
         Assert.True((linkFlags & 0x00000020) != 0, "FLAG_HAS_ARGUMENTS should be set");
@@ -114,7 +115,7 @@ public class ShortcutTests
     [Fact]
     public void Create_WithIconLocation_SetsIconFlag()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe", iconLocation: @"C:\icon.ico");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe", IconLocation = @"C:\icon.ico" });
 
         uint linkFlags = BitConverter.ToUInt32(result, 20);
         Assert.True((linkFlags & 0x00000040) != 0, "FLAG_HAS_ICON_LOCATION should be set");
@@ -123,7 +124,7 @@ public class ShortcutTests
     [Fact]
     public void Create_WithoutOptionals_ClearsOptionalFlags()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe" });
 
         uint linkFlags = BitConverter.ToUInt32(result, 20);
         Assert.True((linkFlags & 0x00000004) == 0, "FLAG_HAS_NAME should not be set");
@@ -135,7 +136,7 @@ public class ShortcutTests
     [Fact]
     public void Create_WithEnvVar_SetsEnvFlags()
     {
-        byte[] result = Shortcut.Create(@"%windir%\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"%windir%\notepad.exe" });
 
         uint linkFlags = BitConverter.ToUInt32(result, 20);
         Assert.True((linkFlags & 0x00000200) != 0, "FLAG_HAS_EXP_SZ should be set");
@@ -147,7 +148,7 @@ public class ShortcutTests
     {
         // Regression test: previously linkFlags was truncated to a single byte,
         // losing FLAG_PREFER_ENVIRONMENT_PATH (0x02000000)
-        byte[] result = Shortcut.Create(@"%windir%\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"%windir%\notepad.exe" });
 
         uint linkFlags = BitConverter.ToUInt32(result, 20);
         Assert.True((linkFlags & 0x02000000) != 0,
@@ -157,7 +158,7 @@ public class ShortcutTests
     [Fact]
     public void Create_WithEnvVar_ContainsEnvDataBlock()
     {
-        byte[] result = Shortcut.Create(@"%windir%\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"%windir%\notepad.exe" });
 
         // Search for environment variable data block signature
         bool found = false;
@@ -176,7 +177,7 @@ public class ShortcutTests
     [Fact]
     public void Create_WithoutEnvVar_NoEnvDataBlock()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe" });
 
         // Verify environment variable data block signature is NOT present
         bool found = false;
@@ -195,7 +196,7 @@ public class ShortcutTests
     [Fact]
     public void Create_EndsWithTerminator()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe" });
 
         // Last 4 bytes should be the extra data chain terminator (0x00000000)
         uint terminator = BitConverter.ToUInt32(result, result.Length - 4);
@@ -205,7 +206,7 @@ public class ShortcutTests
     [Fact]
     public void Create_NetworkPath_CreatesValidOutput()
     {
-        byte[] result = Shortcut.Create(@"\\server\share\file.txt");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"\\server\share\file.txt" });
 
         // Should still have valid header
         uint headerSize = BitConverter.ToUInt32(result, 0);
@@ -219,7 +220,7 @@ public class ShortcutTests
     [Fact]
     public void Create_NetworkFolder_SetsDirectoryAttributes()
     {
-        byte[] result = Shortcut.Create(@"\\server\share\folder");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"\\server\share\folder" });
 
         uint fileAttr = BitConverter.ToUInt32(result, 24);
         Assert.Equal(0x00000010u, fileAttr); // Directory
@@ -228,7 +229,7 @@ public class ShortcutTests
     [Fact]
     public void Create_PrinterLink_CreatesValidOutput()
     {
-        byte[] result = Shortcut.Create(@"\\server\printer", isPrinterLink: true);
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"\\server\printer", IsPrinterLink = true });
 
         uint headerSize = BitConverter.ToUInt32(result, 0);
         Assert.Equal(HEADER_SIZE, headerSize);
@@ -238,7 +239,7 @@ public class ShortcutTests
     public void Create_RootDriveOnly_CreatesValidOutput()
     {
         // Target is just "C:" which should become a root link
-        byte[] result = Shortcut.Create(@"C:");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:" });
 
         uint headerSize = BitConverter.ToUInt32(result, 0);
         Assert.Equal(HEADER_SIZE, headerSize);
@@ -247,13 +248,15 @@ public class ShortcutTests
     [Fact]
     public void Create_AllOptionalFields_CreatesValidOutput()
     {
-        byte[] result = Shortcut.Create(
-            target: @"C:\Windows\notepad.exe",
-            description: "Notepad",
-            workingDirectory: @"C:\Windows",
-            arguments: "test.txt",
-            iconLocation: @"C:\Windows\notepad.exe",
-            iconIndex: 0);
+        byte[] result = Shortcut.Create(new ShortcutOptions
+        {
+            Target = @"C:\Windows\notepad.exe",
+            Description = "Notepad",
+            WorkingDirectory = @"C:\Windows",
+            Arguments = "test.txt",
+            IconLocation = @"C:\Windows\notepad.exe",
+            IconIndex = 0
+        });
 
         // Verify all flags are set
         uint linkFlags = BitConverter.ToUInt32(result, 20);
@@ -267,7 +270,7 @@ public class ShortcutTests
     [Fact]
     public void Create_OutputSize_IsReasonable()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe" });
 
         // A minimal .lnk file should be at least 76 bytes (header) + IDList + terminator
         Assert.True(result.Length >= 76, "Output should be at least 76 bytes (header size)");
@@ -279,7 +282,7 @@ public class ShortcutTests
     public void Create_LongExtension_TreatedAsFolder()
     {
         // Extension longer than 3 chars should be treated as folder
-        byte[] result = Shortcut.Create(@"C:\path\file.longext");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\path\file.longext" });
 
         uint fileAttr = BitConverter.ToUInt32(result, 24);
         Assert.Equal(0x00000010u, fileAttr); // Directory attributes
@@ -288,7 +291,7 @@ public class ShortcutTests
     [Fact]
     public void Create_ThreeCharExtension_TreatedAsFile()
     {
-        byte[] result = Shortcut.Create(@"C:\path\file.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\path\file.exe" });
 
         uint fileAttr = BitConverter.ToUInt32(result, 24);
         Assert.Equal(0x00000020u, fileAttr); // File attributes
@@ -297,52 +300,10 @@ public class ShortcutTests
     [Fact]
     public void Create_OneCharExtension_TreatedAsFile()
     {
-        byte[] result = Shortcut.Create(@"C:\path\file.a");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\path\file.a" });
 
         uint fileAttr = BitConverter.ToUInt32(result, 24);
         Assert.Equal(0x00000020u, fileAttr); // File attributes
-    }
-
-    [Fact]
-    public void Create_PadArguments_OutputIsLarger()
-    {
-        byte[] normal = Shortcut.Create(@"C:\Windows\notepad.exe", arguments: "test.txt");
-        byte[] padded = Shortcut.Create(@"C:\Windows\notepad.exe", arguments: "test.txt", padArguments: true);
-
-        // Padded output should be significantly larger (31 KB padding)
-        Assert.True(padded.Length > normal.Length + 30000,
-            $"Padded output ({padded.Length}) should be >30KB larger than normal ({normal.Length})");
-    }
-
-    [Fact]
-    public void Create_PadArguments_ContainsActualArguments()
-    {
-        string args = "myarg123";
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe", arguments: args, padArguments: true);
-
-        // The actual arguments should appear in the output bytes
-        byte[] argBytes = Encoding.Default.GetBytes(args);
-        bool found = false;
-        for (int i = 0; i <= result.Length - argBytes.Length; i++)
-        {
-            bool match = true;
-            for (int j = 0; j < argBytes.Length; j++)
-            {
-                if (result[i + j] != argBytes[j]) { match = false; break; }
-            }
-            if (match) { found = true; break; }
-        }
-        Assert.True(found, "Padded output should contain the actual argument string");
-    }
-
-    [Fact]
-    public void Create_PadArguments_WithoutArguments_NoEffect()
-    {
-        byte[] withPad = Shortcut.Create(@"C:\Windows\notepad.exe", padArguments: true);
-        byte[] withoutPad = Shortcut.Create(@"C:\Windows\notepad.exe", padArguments: false);
-
-        // When arguments is null, padArguments should have no effect
-        Assert.Equal(withoutPad.Length, withPad.Length);
     }
 
     // --- WindowStyle tests ---
@@ -350,7 +311,7 @@ public class ShortcutTests
     [Fact]
     public void Create_WindowStyleNormal_WritesCorrectValue()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe", windowStyle: ShortcutWindowStyle.Normal);
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe", WindowStyle = ShortcutWindowStyle.Normal });
 
         uint showCommand = BitConverter.ToUInt32(result, 60);
         Assert.Equal(1u, showCommand);
@@ -359,7 +320,7 @@ public class ShortcutTests
     [Fact]
     public void Create_WindowStyleMaximized_WritesCorrectValue()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe", windowStyle: ShortcutWindowStyle.Maximized);
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe", WindowStyle = ShortcutWindowStyle.Maximized });
 
         uint showCommand = BitConverter.ToUInt32(result, 60);
         Assert.Equal(3u, showCommand); // SW_SHOWMAXIMIZED
@@ -368,7 +329,7 @@ public class ShortcutTests
     [Fact]
     public void Create_WindowStyleMinimized_WritesCorrectValue()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe", windowStyle: ShortcutWindowStyle.Minimized);
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe", WindowStyle = ShortcutWindowStyle.Minimized });
 
         uint showCommand = BitConverter.ToUInt32(result, 60);
         Assert.Equal(7u, showCommand); // SW_SHOWMINNOACTIVE
@@ -379,7 +340,7 @@ public class ShortcutTests
     [Fact]
     public void Create_RunAsAdmin_SetsRunAsUserFlag()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe", runAsAdmin: true);
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe", RunAsAdmin = true });
 
         uint linkFlags = BitConverter.ToUInt32(result, 20);
         Assert.True((linkFlags & 0x00002000) != 0, "FLAG_RUN_AS_USER should be set");
@@ -388,7 +349,7 @@ public class ShortcutTests
     [Fact]
     public void Create_WithoutRunAsAdmin_ClearsRunAsUserFlag()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe" });
 
         uint linkFlags = BitConverter.ToUInt32(result, 20);
         Assert.True((linkFlags & 0x00002000) == 0, "FLAG_RUN_AS_USER should not be set");
@@ -397,11 +358,13 @@ public class ShortcutTests
     [Fact]
     public void Create_RunAsAdmin_WithOtherFlags_PreservesAllFlags()
     {
-        byte[] result = Shortcut.Create(
-            target: @"C:\Windows\notepad.exe",
-            description: "Test",
-            arguments: "/test",
-            runAsAdmin: true);
+        byte[] result = Shortcut.Create(new ShortcutOptions
+        {
+            Target = @"C:\Windows\notepad.exe",
+            Description = "Test",
+            Arguments = "/test",
+            RunAsAdmin = true
+        });
 
         uint linkFlags = BitConverter.ToUInt32(result, 20);
         Assert.True((linkFlags & 0x00002000) != 0, "FLAG_RUN_AS_USER");
@@ -415,10 +378,12 @@ public class ShortcutTests
     public void Create_Hotkey_WritesKeyAndModifiers()
     {
         // Ctrl+Alt+T: key = 0x54 ('T'), modifiers = Control | Alt = 0x06
-        byte[] result = Shortcut.Create(
-            @"C:\Windows\notepad.exe",
-            hotkeyKey: 0x54,
-            hotkeyModifiers: HotkeyModifiers.Control | HotkeyModifiers.Alt);
+        byte[] result = Shortcut.Create(new ShortcutOptions
+        {
+            Target = @"C:\Windows\notepad.exe",
+            HotkeyKey = 0x54,
+            HotkeyModifiers = HotkeyModifiers.Control | HotkeyModifiers.Alt
+        });
 
         // Hotkey at offset 64 (2 bytes: low = key, high = modifiers)
         Assert.Equal(0x54, result[64]); // Virtual key code for 'T'
@@ -428,7 +393,7 @@ public class ShortcutTests
     [Fact]
     public void Create_DefaultHotkey_IsZero()
     {
-        byte[] result = Shortcut.Create(@"C:\Windows\notepad.exe");
+        byte[] result = Shortcut.Create(new ShortcutOptions { Target = @"C:\Windows\notepad.exe" });
 
         Assert.Equal(0, result[64]);
         Assert.Equal(0, result[65]);
@@ -437,10 +402,12 @@ public class ShortcutTests
     [Fact]
     public void Create_Hotkey_ShiftOnly()
     {
-        byte[] result = Shortcut.Create(
-            @"C:\Windows\notepad.exe",
-            hotkeyKey: 0x41, // 'A'
-            hotkeyModifiers: HotkeyModifiers.Shift);
+        byte[] result = Shortcut.Create(new ShortcutOptions
+        {
+            Target = @"C:\Windows\notepad.exe",
+            HotkeyKey = 0x41, // 'A'
+            HotkeyModifiers = HotkeyModifiers.Shift
+        });
 
         Assert.Equal(0x41, result[64]);
         Assert.Equal(0x01, result[65]); // Shift
@@ -451,17 +418,19 @@ public class ShortcutTests
     [Fact]
     public void Create_AllNewFeatures_CreatesValidOutput()
     {
-        byte[] result = Shortcut.Create(
-            target: @"C:\Windows\notepad.exe",
-            arguments: "test.txt",
-            description: "Notepad",
-            workingDirectory: @"C:\Windows",
-            iconLocation: @"C:\Windows\notepad.exe",
-            iconIndex: 1,
-            windowStyle: ShortcutWindowStyle.Maximized,
-            runAsAdmin: true,
-            hotkeyKey: 0x54,
-            hotkeyModifiers: HotkeyModifiers.Control | HotkeyModifiers.Alt);
+        byte[] result = Shortcut.Create(new ShortcutOptions
+        {
+            Target = @"C:\Windows\notepad.exe",
+            Arguments = "test.txt",
+            Description = "Notepad",
+            WorkingDirectory = @"C:\Windows",
+            IconLocation = @"C:\Windows\notepad.exe",
+            IconIndex = 1,
+            WindowStyle = ShortcutWindowStyle.Maximized,
+            RunAsAdmin = true,
+            HotkeyKey = 0x54,
+            HotkeyModifiers = HotkeyModifiers.Control | HotkeyModifiers.Alt
+        });
 
         // Valid header
         uint headerSize = BitConverter.ToUInt32(result, 0);
