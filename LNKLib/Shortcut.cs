@@ -2,7 +2,7 @@ using System.Text;
 
 namespace LNKLib;
 
-public static class ShortcutCreator
+public static class Shortcut
 {
     private const int MaxPath = 260;
     private const uint EnvVarBlockSignature = 0xA0000001;
@@ -142,13 +142,13 @@ public static class ShortcutCreator
     /// If the target contains environment variables (e.g. "%windir%"), the extra data block is appended
     /// after all mandatory and optional fields and then terminated with a 4-byte zero.
     /// </summary>
-    public static byte[] CreateShortcut(
+    public static byte[] Create(
         string target,
         string? arguments = null,
         bool padArguments = false,
         string? iconLocation = null,
         int iconIndex = 0,
-        string? name = null,
+        string? description = null,
         string? workingDirectory = null,
         bool isPrinterLink = false)
     {
@@ -279,7 +279,7 @@ public static class ShortcutCreator
 
         // --- Combine all flags ---
         int linkFlags = FLAG_HAS_LINK_TARGET_ID_LIST
-            | (name != null ? FLAG_HAS_NAME : 0)
+            | (description != null ? FLAG_HAS_NAME : 0)
             | (workingDirectory != null ? FLAG_HAS_WORKING_DIR : 0)
             | (arguments != null ? FLAG_HAS_ARGUMENTS : 0)
             | (iconLocation != null ? FLAG_HAS_ICON_LOCATION : 0)
@@ -360,7 +360,7 @@ public static class ShortcutCreator
             writer.Write(terminalId);
 
             // Write optional strings.
-            WriteStringData(writer, name);
+            WriteStringData(writer, description);
             WriteStringData(writer, workingDirectory);
             if (padArguments && arguments != null)
                 WritePaddedArguments(writer, arguments);
