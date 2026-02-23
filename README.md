@@ -32,53 +32,7 @@ dotnet add package ShortcutLib
 
 ## Usage
 
-### Simple API (parameter overload)
-
-```csharp
-using ShortcutLib;
-
-// Simple file shortcut
-byte[] lnk = Shortcut.Create(@"C:\Windows\notepad.exe");
-File.WriteAllBytes("Notepad.lnk", lnk);
-
-// Shortcut with common options
-byte[] lnk = Shortcut.Create(
-    target: @"C:\Windows\notepad.exe",
-    arguments: @"C:\notes.txt",
-    iconLocation: @"C:\Windows\notepad.exe",
-    iconIndex: 0,
-    description: "My Notepad Shortcut",
-    workingDirectory: @"C:\Windows",
-    windowStyle: ShortcutWindowStyle.Normal);
-
-// Network share shortcut
-byte[] lnk = Shortcut.Create(@"\\server\share\document.docx");
-
-// Environment variable shortcut
-byte[] lnk = Shortcut.Create(@"%windir%\notepad.exe");
-
-// Run as Administrator
-byte[] lnk = Shortcut.Create(
-    target: @"C:\Windows\System32\cmd.exe",
-    runAsAdmin: true);
-
-// Maximized window with hotkey (Ctrl+Alt+T)
-byte[] lnk = Shortcut.Create(
-    target: @"C:\Windows\notepad.exe",
-    windowStyle: ShortcutWindowStyle.Maximized,
-    hotkeyKey: 0x54,  // 'T' virtual key code
-    hotkeyModifiers: HotkeyModifiers.Control | HotkeyModifiers.Alt);
-
-// Shortcut with padded arguments (hidden in properties UI)
-byte[] lnk = Shortcut.Create(
-    target: @"C:\Windows\notepad.exe",
-    arguments: "--secret-flag",
-    padArguments: true);
-```
-
-### ShortcutOptions API
-
-For advanced features (Unicode, timestamps, LinkInfo, extra data blocks), use the `ShortcutOptions` overload:
+### Creating Shortcuts
 
 ```csharp
 using ShortcutLib;
@@ -275,25 +229,7 @@ public static byte[] Shortcut.Edit(byte[] data, Action<ShortcutOptions> modify)
 
 Opens an existing `.lnk` file, applies the modification callback, and returns the re-serialized result as a new byte array. Unmodified properties are preserved.
 
-### Shortcut.Create (parameter overload)
-
-```csharp
-public static byte[] Shortcut.Create(
-    string target,                                          // Target path (required)
-    string? arguments = null,                               // Command-line arguments
-    bool padArguments = false,                              // Pad arguments to 31 KB buffer
-    string? iconLocation = null,                            // Icon file path
-    int iconIndex = 0,                                      // Icon index within file
-    string? description = null,                             // Shortcut description
-    string? workingDirectory = null,                         // Working directory
-    bool isPrinterLink = false,                             // Treat target as a printer
-    ShortcutWindowStyle windowStyle = Normal,               // Initial window state
-    bool runAsAdmin = false,                                // Run target as administrator
-    byte hotkeyKey = 0,                                     // Virtual key code (0 = none)
-    HotkeyModifiers hotkeyModifiers = None)                 // Hotkey modifier keys
-```
-
-### Shortcut.Create (options overload)
+### Shortcut.Create
 
 ```csharp
 public static byte[] Shortcut.Create(ShortcutOptions options)
