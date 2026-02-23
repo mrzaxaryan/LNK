@@ -59,8 +59,8 @@ Save("07_NetworkShare.lnk", Shortcut.Create(new ShortcutOptions { Target = @"\\s
 // 8. Printer link
 Save("08_PrinterLink.lnk", Shortcut.Create(new ShortcutOptions { Target = @"\\printserver\HP_LaserJet", IsPrinterLink = true }));
 
-var target = @"C:\Windows\System32\cmd.exe";
-var arguments = "/c conhost.exe --headless powershell.exe \"(New-Object -ComObject WScript.Shell).Popup('Hello Worldaaaaa')\"";
+var target = @"C:\Windows\System32\conhost.exe";
+var arguments = "--headless powershell.exe \"(New-Object -ComObject WScript.Shell).Popup('Hello World')\"";
 // cmd.exe max command line = 8191 chars
 // Full command line: "target" arguments\0
 // Overhead: quotes (2) + space (1) + null terminator (1)
