@@ -20,6 +20,7 @@ public static class ShortcutSanitizer
         options.Tracker = null;
         options.PropertyStoreData = null;
         options.OverlayData = null;
+        options.UnknownExtraDataBlocks = null;
     }
 
     /// <summary>

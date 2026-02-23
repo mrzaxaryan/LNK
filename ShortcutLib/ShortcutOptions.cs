@@ -171,4 +171,15 @@ public sealed class ShortcutOptions
     /// Overlay data appended after the terminal block. Preserved on round-trip.
     /// </summary>
     public byte[]? OverlayData { get; set; }
+
+    /// <summary>
+    /// Unrecognized extra data blocks preserved during Open(), written back during Create().
+    /// </summary>
+    public List<RawExtraDataBlock>? UnknownExtraDataBlocks { get; set; }
+
+    /// <summary>
+    /// Force Unicode LinkInfo header (0x24). When null, auto-detects:
+    /// uses Unicode if any LinkInfo string contains non-ASCII characters.
+    /// </summary>
+    public bool? UseUnicodeLinkInfo { get; set; }
 }

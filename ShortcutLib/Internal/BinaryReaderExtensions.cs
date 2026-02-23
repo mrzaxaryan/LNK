@@ -29,4 +29,17 @@ internal static class BinaryReaderExtensions
         byte[] buffer = reader.ReadBytes(byteCount);
         return Encoding.Unicode.GetString(buffer).TrimEnd('\0');
     }
+
+    internal static string ReadNullTerminatedUnicodeString(this BinaryReader reader)
+    {
+        var chars = new List<char>();
+        while (reader.BaseStream.Position + 1 < reader.BaseStream.Length)
+        {
+            byte lo = reader.ReadByte();
+            byte hi = reader.ReadByte();
+            if (lo == 0 && hi == 0) break;
+            chars.Add((char)(lo | (hi << 8)));
+        }
+        return new string(chars.ToArray());
+    }
 }

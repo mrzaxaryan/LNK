@@ -29,7 +29,8 @@ public static class Shortcut
         IdListWriter.Write(writer, pathInfo);
         writer.Write(new byte[2]); // TerminalID
 
-        ExtraDataBlockWriter.WriteLinkInfo(writer, linkInfo);
+        bool useUnicodeLinkInfo = ResolveUnicodeLinkInfo(options, linkInfo);
+        ExtraDataBlockWriter.WriteLinkInfo(writer, linkInfo, useUnicodeLinkInfo);
 
         WriteStringData(writer, options);
         WriteExtraDataBlocks(writer, options);
@@ -123,6 +124,30 @@ public static class Shortcut
         };
     }
 
+    private static bool ResolveUnicodeLinkInfo(ShortcutOptions options, LinkInfo? linkInfo)
+    {
+        if (options.UseUnicodeLinkInfo.HasValue)
+            return options.UseUnicodeLinkInfo.Value;
+
+        // Auto-detect: use Unicode if any LinkInfo string contains non-ASCII
+        if (linkInfo?.Local != null)
+        {
+            if (HasNonAscii(linkInfo.Local.BasePath) || HasNonAscii(linkInfo.Local.VolumeLabel))
+                return true;
+        }
+        if (linkInfo?.Network != null)
+        {
+            if (HasNonAscii(linkInfo.Network.ShareName) ||
+                HasNonAscii(linkInfo.Network.CommonPathSuffix) ||
+                HasNonAscii(linkInfo.Network.DeviceName))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool HasNonAscii(string? s) =>
+        s != null && s.Any(c => c > 127);
+
     private static void WriteHeader(BinaryWriter writer, ShortcutOptions options, int linkFlags, TargetPathInfo pathInfo)
     {
         writer.Write(new byte[] { 0x4C, 0x00, 0x00, 0x00 }); // HeaderSize
@@ -214,5 +239,16 @@ public static class Shortcut
 
         if (options.VistaIdListData != null)
             ExtraDataBlockWriter.WriteVistaIdListDataBlock(writer, options.VistaIdListData);
+
+        // Preserve unknown extra data blocks from parsing
+        if (options.UnknownExtraDataBlocks is { Count: > 0 })
+        {
+            foreach (var block in options.UnknownExtraDataBlocks)
+            {
+                writer.Write(8 + block.Data.Length);
+                writer.Write(block.Signature);
+                writer.Write(block.Data);
+            }
+        }
     }
 }

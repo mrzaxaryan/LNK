@@ -229,6 +229,15 @@ internal static class LnkParser
         uint cnrlOffset = reader.ReadUInt32();
         uint commonPathSuffixOffset = reader.ReadUInt32();
 
+        // Extended header (0x24 = 36 bytes) has Unicode path offsets
+        uint localBasePathOffsetUnicode = 0;
+        uint commonPathSuffixOffsetUnicode = 0;
+        if (linkInfoHeaderSize >= 0x24)
+        {
+            localBasePathOffsetUnicode = reader.ReadUInt32();
+            commonPathSuffixOffsetUnicode = reader.ReadUInt32();
+        }
+
         var linkInfo = new LinkInfo();
         bool hasLocal = (flags & 0x01) != 0;
         bool hasNetwork = (flags & 0x02) != 0;
@@ -242,13 +251,33 @@ internal static class LnkParser
             uint driveSerialNumber = reader.ReadUInt32();
             uint volumeLabelOffset = reader.ReadUInt32();
 
-            int labelLength = (int)(volumeIdSize - volumeLabelOffset);
-            reader.BaseStream.Position = linkInfoStart + volumeIdOffset + volumeLabelOffset;
-            string volumeLabel = reader.ReadFixedAnsiString(labelLength).TrimEnd('\0');
+            string volumeLabel;
+            if (volumeLabelOffset == 0x14)
+            {
+                // Sentinel value: Unicode volume label follows
+                uint volumeLabelOffsetUnicode = reader.ReadUInt32();
+                reader.BaseStream.Position = linkInfoStart + volumeIdOffset + volumeLabelOffsetUnicode;
+                volumeLabel = reader.ReadNullTerminatedUnicodeString();
+            }
+            else
+            {
+                int labelLength = (int)(volumeIdSize - volumeLabelOffset);
+                reader.BaseStream.Position = linkInfoStart + volumeIdOffset + volumeLabelOffset;
+                volumeLabel = reader.ReadFixedAnsiString(labelLength).TrimEnd('\0');
+            }
 
-            // Read LocalBasePath
-            reader.BaseStream.Position = linkInfoStart + localBasePathOffset;
-            string basePath = reader.ReadNullTerminatedAnsiString();
+            // Prefer Unicode LocalBasePath if available
+            string basePath;
+            if (localBasePathOffsetUnicode > 0)
+            {
+                reader.BaseStream.Position = linkInfoStart + localBasePathOffsetUnicode;
+                basePath = reader.ReadNullTerminatedUnicodeString();
+            }
+            else
+            {
+                reader.BaseStream.Position = linkInfoStart + localBasePathOffset;
+                basePath = reader.ReadNullTerminatedAnsiString();
+            }
 
             linkInfo.Local = new LocalPathInfo
             {
@@ -269,26 +298,60 @@ internal static class LnkParser
             uint deviceNameOffset = reader.ReadUInt32();
             uint networkProviderType = reader.ReadUInt32();
 
-            // Read ShareName at netNameOffset within the CNRL
-            reader.BaseStream.Position = linkInfoStart + cnrlOffset + netNameOffset;
-            string shareName = reader.ReadNullTerminatedAnsiString();
-
-            // Read DeviceName if ValidDevice flag is set
-            string? deviceName = null;
-            if ((cnrlFlags & 0x01) != 0 && deviceNameOffset > 0)
+            // Extended CNRL header: NetNameOffset > 0x14 signals Unicode fields
+            uint netNameOffsetUnicode = 0;
+            uint deviceNameOffsetUnicode = 0;
+            if (netNameOffset > 0x14)
             {
-                reader.BaseStream.Position = linkInfoStart + cnrlOffset + deviceNameOffset;
-                deviceName = reader.ReadNullTerminatedAnsiString();
+                netNameOffsetUnicode = reader.ReadUInt32();
+                deviceNameOffsetUnicode = reader.ReadUInt32();
             }
 
-            // Read NetworkProviderType if ValidNetType flag is set
+            // Prefer Unicode ShareName if available
+            string shareName;
+            if (netNameOffsetUnicode > 0)
+            {
+                reader.BaseStream.Position = linkInfoStart + cnrlOffset + netNameOffsetUnicode;
+                shareName = reader.ReadNullTerminatedUnicodeString();
+            }
+            else
+            {
+                reader.BaseStream.Position = linkInfoStart + cnrlOffset + netNameOffset;
+                shareName = reader.ReadNullTerminatedAnsiString();
+            }
+
+            // Prefer Unicode DeviceName if available
+            string? deviceName = null;
+            if ((cnrlFlags & 0x01) != 0)
+            {
+                if (deviceNameOffsetUnicode > 0)
+                {
+                    reader.BaseStream.Position = linkInfoStart + cnrlOffset + deviceNameOffsetUnicode;
+                    deviceName = reader.ReadNullTerminatedUnicodeString();
+                }
+                else if (deviceNameOffset > 0)
+                {
+                    reader.BaseStream.Position = linkInfoStart + cnrlOffset + deviceNameOffset;
+                    deviceName = reader.ReadNullTerminatedAnsiString();
+                }
+            }
+
             uint? providerType = null;
             if ((cnrlFlags & 0x02) != 0)
                 providerType = networkProviderType;
 
-            // Read CommonPathSuffix
-            reader.BaseStream.Position = linkInfoStart + commonPathSuffixOffset;
-            string commonPathSuffix = reader.ReadNullTerminatedAnsiString();
+            // Prefer Unicode CommonPathSuffix if available
+            string commonPathSuffix;
+            if (commonPathSuffixOffsetUnicode > 0)
+            {
+                reader.BaseStream.Position = linkInfoStart + commonPathSuffixOffsetUnicode;
+                commonPathSuffix = reader.ReadNullTerminatedUnicodeString();
+            }
+            else
+            {
+                reader.BaseStream.Position = linkInfoStart + commonPathSuffixOffset;
+                commonPathSuffix = reader.ReadNullTerminatedAnsiString();
+            }
 
             linkInfo.Network = new NetworkPathInfo
             {
@@ -302,7 +365,6 @@ internal static class LnkParser
         if (hasLocal || hasNetwork)
             options.LinkInfo = linkInfo;
 
-        // Ensure stream is past LinkInfo
         reader.BaseStream.Position = linkInfoStart + linkInfoSize;
     }
 
@@ -388,9 +450,16 @@ internal static class LnkParser
                     ReadVistaIdListDataBlock(reader, options, dataLength);
                     break;
                 default:
-                    // Skip unknown blocks
+                    // Preserve unknown blocks for round-trip fidelity
                     if (dataLength > 0)
-                        reader.ReadBytes(dataLength);
+                    {
+                        options.UnknownExtraDataBlocks ??= [];
+                        options.UnknownExtraDataBlocks.Add(new RawExtraDataBlock
+                        {
+                            Signature = signature,
+                            Data = reader.ReadBytes(dataLength)
+                        });
+                    }
                     break;
             }
         }

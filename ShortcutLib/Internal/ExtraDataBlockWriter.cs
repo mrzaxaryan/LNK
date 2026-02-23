@@ -6,43 +6,67 @@ internal static class ExtraDataBlockWriter
 {
     /// <summary>
     /// Writes the LinkInfo structure per [MS-SHLLINK] 2.3.
+    /// When useUnicode is true, writes the extended header (0x24) with Unicode path fields.
     /// </summary>
-    internal static void WriteLinkInfo(BinaryWriter writer, LinkInfo info)
+    internal static void WriteLinkInfo(BinaryWriter writer, LinkInfo info, bool useUnicode = false)
     {
         bool hasLocal = info.Local is not null;
         bool hasNetwork = info.Network is not null;
 
         int flags = 0;
-        if (hasLocal) flags |= 0x01; // VolumeIDAndLocalBasePath
-        if (hasNetwork) flags |= 0x02; // CommonNetworkRelativeLinkAndPathSuffix
+        if (hasLocal) flags |= 0x01;
+        if (hasNetwork) flags |= 0x02;
 
-        // LinkInfoHeaderSize = 0x1C (28 bytes) for the basic header
-        const int headerSize = 0x1C;
+        int headerSize = useUnicode ? 0x24 : 0x1C;
 
-        // Pre-compute VolumeID structure if local
+        // Pre-compute VolumeID
         byte[]? volumeIdBytes = null;
-        byte[]? localBasePathBytes = null;
+        byte[]? localBasePathAnsi = null;
+        byte[]? localBasePathUnicode = null;
         if (hasLocal)
         {
             var local = info.Local!;
             byte[] volumeLabelAnsi = Encoding.Default.GetBytes(local.VolumeLabel + "\0");
-            int volumeIdSize = 4 + 4 + 4 + 4 + volumeLabelAnsi.Length; // size + driveType + serialNum + labelOffset + label
+
             using var volMs = new MemoryStream();
             using var volW = new BinaryWriter(volMs);
-            volW.Write(volumeIdSize);
-            volW.Write(local.DriveType);
-            volW.Write(local.DriveSerialNumber);
-            volW.Write(0x10); // VolumeLabelOffset = 16 (offset within VolumeID structure)
-            volW.Write(volumeLabelAnsi);
+
+            if (useUnicode)
+            {
+                // Extended VolumeID: VolumeLabelOffset=0x14 (sentinel), then VolumeLabelOffsetUnicode
+                byte[] volumeLabelUnicode = Encoding.Unicode.GetBytes(local.VolumeLabel + "\0");
+                int volumeIdSize = 4 + 4 + 4 + 4 + 4 + volumeLabelAnsi.Length + volumeLabelUnicode.Length;
+                int volumeLabelUnicodeOffset = 4 + 4 + 4 + 4 + 4 + volumeLabelAnsi.Length;
+                volW.Write(volumeIdSize);
+                volW.Write(local.DriveType);
+                volW.Write(local.DriveSerialNumber);
+                volW.Write(0x14);  // Sentinel: signals Unicode label follows
+                volW.Write(volumeLabelUnicodeOffset);
+                volW.Write(volumeLabelAnsi);
+                volW.Write(volumeLabelUnicode);
+            }
+            else
+            {
+                int volumeIdSize = 4 + 4 + 4 + 4 + volumeLabelAnsi.Length;
+                volW.Write(volumeIdSize);
+                volW.Write(local.DriveType);
+                volW.Write(local.DriveSerialNumber);
+                volW.Write(0x10); // VolumeLabelOffset = 16
+                volW.Write(volumeLabelAnsi);
+            }
+
             volW.Flush();
             volumeIdBytes = volMs.ToArray();
 
-            localBasePathBytes = Encoding.Default.GetBytes(local.BasePath + "\0");
+            localBasePathAnsi = Encoding.Default.GetBytes(local.BasePath + "\0");
+            if (useUnicode)
+                localBasePathUnicode = Encoding.Unicode.GetBytes(local.BasePath + "\0");
         }
 
-        // Pre-compute CommonNetworkRelativeLink if network
+        // Pre-compute CNRL
         byte[]? cnrlBytes = null;
-        byte[]? commonPathSuffixBytes = null;
+        byte[]? commonPathSuffixAnsi = null;
+        byte[]? commonPathSuffixUnicode = null;
         if (hasNetwork)
         {
             var network = info.Network!;
@@ -52,29 +76,66 @@ internal static class ExtraDataBlockWriter
                 : [];
 
             int cnrlFlags = 0;
-            if (network.DeviceName != null) cnrlFlags |= 0x01;    // ValidDevice
-            if (network.NetworkProviderType.HasValue) cnrlFlags |= 0x02; // ValidNetType
-
-            const int cnrlHeaderSize = 0x14; // 5 * 4 = 20 bytes
-            int deviceNameOffset = network.DeviceName != null
-                ? cnrlHeaderSize + shareNameAnsi.Length
-                : 0;
-            int cnrlSize = cnrlHeaderSize + shareNameAnsi.Length + deviceNameAnsi.Length;
+            if (network.DeviceName != null) cnrlFlags |= 0x01;
+            if (network.NetworkProviderType.HasValue) cnrlFlags |= 0x02;
 
             using var cnrlMs = new MemoryStream();
             using var cnrlW = new BinaryWriter(cnrlMs);
-            cnrlW.Write(cnrlSize);
-            cnrlW.Write(cnrlFlags);
-            cnrlW.Write(cnrlHeaderSize); // NetNameOffset = 20
-            cnrlW.Write(deviceNameOffset);
-            cnrlW.Write(network.NetworkProviderType ?? 0x00020000u); // Default WNNC_NET_LANMAN
-            cnrlW.Write(shareNameAnsi);
-            if (deviceNameAnsi.Length > 0)
-                cnrlW.Write(deviceNameAnsi);
+
+            if (useUnicode)
+            {
+                // Extended CNRL: header size 0x1C (7 DWORDs) with Unicode offsets
+                byte[] shareNameUnicode = Encoding.Unicode.GetBytes(network.ShareName + "\0");
+                byte[] deviceNameUnicode = network.DeviceName != null
+                    ? Encoding.Unicode.GetBytes(network.DeviceName + "\0")
+                    : [];
+
+                const int cnrlHeaderSize = 0x1C; // 7 * 4 = 28 bytes (extended)
+                int deviceNameOffset = network.DeviceName != null
+                    ? cnrlHeaderSize + shareNameAnsi.Length
+                    : 0;
+                int ansiEnd = cnrlHeaderSize + shareNameAnsi.Length + deviceNameAnsi.Length;
+                int netNameOffsetUnicode = ansiEnd;
+                int deviceNameOffsetUnicode = network.DeviceName != null
+                    ? ansiEnd + shareNameUnicode.Length
+                    : 0;
+                int cnrlSize = ansiEnd + shareNameUnicode.Length + deviceNameUnicode.Length;
+
+                cnrlW.Write(cnrlSize);
+                cnrlW.Write(cnrlFlags);
+                cnrlW.Write(cnrlHeaderSize); // NetNameOffset > 0x14 signals extended
+                cnrlW.Write(deviceNameOffset);
+                cnrlW.Write(network.NetworkProviderType ?? 0x00020000u);
+                cnrlW.Write(netNameOffsetUnicode);
+                cnrlW.Write(deviceNameOffsetUnicode);
+                cnrlW.Write(shareNameAnsi);
+                if (deviceNameAnsi.Length > 0) cnrlW.Write(deviceNameAnsi);
+                cnrlW.Write(shareNameUnicode);
+                if (deviceNameUnicode.Length > 0) cnrlW.Write(deviceNameUnicode);
+            }
+            else
+            {
+                const int cnrlHeaderSize = 0x14;
+                int deviceNameOffset = network.DeviceName != null
+                    ? cnrlHeaderSize + shareNameAnsi.Length
+                    : 0;
+                int cnrlSize = cnrlHeaderSize + shareNameAnsi.Length + deviceNameAnsi.Length;
+
+                cnrlW.Write(cnrlSize);
+                cnrlW.Write(cnrlFlags);
+                cnrlW.Write(cnrlHeaderSize);
+                cnrlW.Write(deviceNameOffset);
+                cnrlW.Write(network.NetworkProviderType ?? 0x00020000u);
+                cnrlW.Write(shareNameAnsi);
+                if (deviceNameAnsi.Length > 0) cnrlW.Write(deviceNameAnsi);
+            }
+
             cnrlW.Flush();
             cnrlBytes = cnrlMs.ToArray();
 
-            commonPathSuffixBytes = Encoding.Default.GetBytes(network.CommonPathSuffix + "\0");
+            commonPathSuffixAnsi = Encoding.Default.GetBytes(network.CommonPathSuffix + "\0");
+            if (useUnicode)
+                commonPathSuffixUnicode = Encoding.Unicode.GetBytes(network.CommonPathSuffix + "\0");
         }
 
         // Compute offsets from start of LinkInfo
@@ -90,7 +151,7 @@ internal static class ExtraDataBlockWriter
             volumeIdOffset = currentOffset;
             currentOffset += volumeIdBytes!.Length;
             localBasePathOffset = currentOffset;
-            currentOffset += localBasePathBytes!.Length;
+            currentOffset += localBasePathAnsi!.Length;
         }
 
         if (hasNetwork)
@@ -98,19 +159,39 @@ internal static class ExtraDataBlockWriter
             cnrlOffset = currentOffset;
             currentOffset += cnrlBytes!.Length;
             commonPathSuffixOffset = currentOffset;
-            currentOffset += commonPathSuffixBytes!.Length;
+            currentOffset += commonPathSuffixAnsi!.Length;
         }
         else
         {
-            // CommonPathSuffix is always present, even for local-only
             commonPathSuffixOffset = currentOffset;
-            commonPathSuffixBytes = [0]; // empty null-terminated string
+            commonPathSuffixAnsi = [0];
             currentOffset += 1;
+        }
+
+        // Unicode offsets (after all ANSI data)
+        int localBasePathOffsetUnicode = 0;
+        int commonPathSuffixOffsetUnicode = 0;
+
+        if (useUnicode)
+        {
+            if (hasLocal)
+            {
+                localBasePathOffsetUnicode = currentOffset;
+                currentOffset += localBasePathUnicode!.Length;
+            }
+            commonPathSuffixOffsetUnicode = currentOffset;
+            if (commonPathSuffixUnicode != null)
+                currentOffset += commonPathSuffixUnicode.Length;
+            else
+            {
+                commonPathSuffixUnicode = Encoding.Unicode.GetBytes("\0");
+                currentOffset += commonPathSuffixUnicode.Length;
+            }
         }
 
         int linkInfoSize = currentOffset;
 
-        // Write the complete LinkInfo structure
+        // Write header
         writer.Write(linkInfoSize);
         writer.Write(headerSize);
         writer.Write(flags);
@@ -119,18 +200,31 @@ internal static class ExtraDataBlockWriter
         writer.Write(cnrlOffset);
         writer.Write(commonPathSuffixOffset);
 
+        if (useUnicode)
+        {
+            writer.Write(localBasePathOffsetUnicode);
+            writer.Write(commonPathSuffixOffsetUnicode);
+        }
+
+        // Write data
         if (hasLocal)
         {
             writer.Write(volumeIdBytes!);
-            writer.Write(localBasePathBytes!);
+            writer.Write(localBasePathAnsi!);
         }
 
         if (hasNetwork)
-        {
             writer.Write(cnrlBytes!);
-        }
 
-        writer.Write(commonPathSuffixBytes!);
+        writer.Write(commonPathSuffixAnsi!);
+
+        // Write Unicode data
+        if (useUnicode)
+        {
+            if (hasLocal)
+                writer.Write(localBasePathUnicode!);
+            writer.Write(commonPathSuffixUnicode!);
+        }
     }
 
     /// <summary>

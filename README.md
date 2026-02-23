@@ -19,13 +19,20 @@ A zero-dependency .NET library for creating, opening, and editing Windows Shell 
 - Relative path support
 - LinkInfo structure (local volume info and network share info)
 - Extra data blocks: Console, ConsoleFE, Darwin (MSI), Shim, IconEnvironment, KnownFolder, Tracker, PropertyStore, SpecialFolder, VistaAndAboveIDList
+- Unknown extra data block preservation (round-trips unrecognized blocks)
 - All 27 LinkFlags from the MS-SHLLINK spec (AllowLinkToLink, ForceNoLinkTrack, etc.)
 - FileAttributes enum (ReadOnly, Hidden, System, Encrypted, etc.)
 - Network path enhancements (DeviceName, NetworkProviderType)
-- PropertyStoreBuilder for typed AppUserModelID, ToastActivatorCLSID, PreventPinning, and more
-- Arbitrary named property support in PropertyStoreBuilder
+- LinkInfo Unicode support (0x24 header) for non-ASCII paths, volume labels, and share names
+- PropertyStoreBuilder for typed AppUserModelID, ToastActivatorCLSID, PreventPinning, and 30+ additional properties
+- PropertyStoreReader for parsing/deserializing property store binary data back into typed entries
+- 10 VT types: VT_LPWSTR, VT_BOOL, VT_UI4, VT_CLSID, VT_I2, VT_I4, VT_UI2, VT_I8, VT_UI8, VT_FILETIME, VT_BLOB, VT_LPSTR
+- Arbitrary named property support in PropertyStoreBuilder (string, bool, int, uint, DateTime, blob, etc.)
+- WinXHasher for computing WinX Power User Menu hashes
+- DarwinDescriptor for decoding MSI advertised shortcut descriptors (product/component GUIDs, feature ID)
+- TrackerData forensic extraction (MAC address, timestamp from Version 1 UUIDs)
 - Named constants: DriveTypes, CsidlFolderIds, VirtualKeys, ConsoleFillAttributes, ConsoleFontFamilies, ShimLayerNames
-- ShortcutSanitizer for stripping privacy-sensitive metadata (machine name, MAC address, etc.)
+- ShortcutSanitizer for stripping privacy-sensitive metadata (machine name, MAC address, unknown blocks, etc.)
 - Overlay data (post-terminal block data) preservation
 - Returns raw `byte[]` — no COM interop or Windows Shell dependency
 - Targets .NET 10
@@ -214,7 +221,71 @@ byte[] lnk = Shortcut.Create(new ShortcutOptions
     PropertyStoreData = builder.Build()
 });
 
-// Strip privacy-sensitive metadata (machine name, MAC address, etc.)
+// Unicode LinkInfo for non-ASCII paths (auto-detects when needed)
+byte[] lnk = Shortcut.Create(new ShortcutOptions
+{
+    Target = @"C:\Users\ユーザー\Documents\レポート.docx",
+    LinkInfo = new LinkInfo
+    {
+        Local = new LocalPathInfo
+        {
+            BasePath = @"C:\Users\ユーザー\Documents\レポート.docx",
+            VolumeLabel = "データ"
+        }
+    }
+});
+
+// Force Unicode LinkInfo explicitly
+byte[] lnk = Shortcut.Create(new ShortcutOptions
+{
+    Target = @"C:\test.exe",
+    UseUnicodeLinkInfo = true,
+    LinkInfo = new LinkInfo
+    {
+        Local = new LocalPathInfo { BasePath = @"C:\test.exe" }
+    }
+});
+
+// WinX Power User Menu shortcut (Win+X menu)
+byte[] propStore = WinXHasher.BuildPropertyStore(@"C:\Windows\System32\cmd.exe");
+byte[] lnk = Shortcut.Create(new ShortcutOptions
+{
+    Target = @"C:\Windows\System32\cmd.exe",
+    PropertyStoreData = propStore
+});
+
+// Parse property store data from an existing shortcut
+ShortcutOptions opts = Shortcut.Open(File.ReadAllBytes("shortcut.lnk"));
+if (opts.PropertyStoreData != null)
+{
+    var entries = PropertyStoreReader.Parse(opts.PropertyStoreData);
+    foreach (var entry in entries)
+        Console.WriteLine($"{entry.FormatId} PID={entry.PropertyId} Name={entry.Name} Value={entry.Value}");
+}
+
+// Decode a Darwin (MSI) descriptor
+var darwin = DarwinDescriptor.TryDecode(opts.DarwinData);
+if (darwin != null)
+{
+    Console.WriteLine($"Product: {darwin.ProductCode}");
+    Console.WriteLine($"Feature: {darwin.FeatureId}");
+    Console.WriteLine($"Component: {darwin.ComponentCode}");
+}
+
+// Forensic extraction from TrackerData
+if (opts.Tracker != null)
+{
+    Console.WriteLine($"MAC: {opts.Tracker.ExtractMacAddressString()}");
+    Console.WriteLine($"Timestamp: {opts.Tracker.ExtractTimestamp()}");
+    Console.WriteLine($"Birth MAC: {opts.Tracker.ExtractBirthMacAddressString()}");
+}
+
+// Preserve unknown extra data blocks during round-trip
+var parsed = Shortcut.Open(File.ReadAllBytes("shortcut.lnk"));
+// Any unrecognized extra data blocks are preserved in UnknownExtraDataBlocks
+byte[] roundTripped = Shortcut.Create(parsed);
+
+// Strip privacy-sensitive metadata (machine name, MAC address, unknown blocks, etc.)
 byte[] original = File.ReadAllBytes("shortcut.lnk");
 byte[] sanitized = ShortcutSanitizer.SanitizeBytes(original);
 File.WriteAllBytes("clean.lnk", sanitized);
@@ -368,6 +439,8 @@ public static byte[] Shortcut.Create(ShortcutOptions options)
 | `ShimLayerName` | `string?` | `null` | App compatibility layer (e.g. `"WINXP"`) |
 | `VistaIdListData` | `byte[]?` | `null` | Vista+ alternative IDList |
 | `OverlayData` | `byte[]?` | `null` | Data after terminal block |
+| `UnknownExtraDataBlocks` | `List<RawExtraDataBlock>?` | `null` | Preserved unrecognized extra data blocks |
+| `UseUnicodeLinkInfo` | `bool?` | `null` | Force Unicode (0x24) LinkInfo header; null = auto-detect |
 | `FileAttributes` | `FileAttributes?` | `null` | Explicit file attributes (auto-detected when null) |
 | `ForceNoLinkInfo` | `bool` | `false` | Ignore LinkInfo during resolution |
 | `RunInSeparateProcess` | `bool` | `false` | 16-bit target in separate VDM |
@@ -526,20 +599,62 @@ byte[] lnk = Shortcut.Create(new ShortcutOptions
 });
 ```
 
+**AppUserModel properties** (Format ID: `9F4C2855-9CDB-4D7B-82BF-440971C8D266`):
+
 | Property | Type | Description |
 |---|---|---|
-| `AppUserModelId` | `string?` | Taskbar grouping / jump list ID |
-| `ToastActivatorCLSID` | `Guid?` | Toast notification COM CLSID |
-| `PreventPinning` | `bool?` | Prevent taskbar/Start pinning |
-| `RelaunchCommand` | `string?` | Taskbar relaunch command |
-| `RelaunchDisplayNameResource` | `string?` | Relaunch display name |
-| `RelaunchIconResource` | `string?` | Relaunch icon |
-| `ExcludeFromShowInNewInstall` | `bool?` | Hide from "New programs" list |
-| `IsDestListSeparator` | `bool?` | Jump list separator |
-| `TargetParsingPath` | `string?` | System.Link.TargetParsingPath — canonical target path |
-| `TargetSFGAOFlags` | `uint?` | System.Link.TargetSFGAOFlags — shell attributes |
-| `ItemTypeText` | `string?` | System.ItemTypeText — file type description |
-| `MimeType` | `string?` | System.MIMEType — MIME type of target |
+| `AppUserModelId` | `string?` | Taskbar grouping / jump list ID (PID 5) |
+| `ToastActivatorCLSID` | `Guid?` | Toast notification COM CLSID (PID 26) |
+| `PreventPinning` | `bool?` | Prevent taskbar/Start pinning (PID 9) |
+| `RelaunchCommand` | `string?` | Taskbar relaunch command (PID 2) |
+| `RelaunchDisplayNameResource` | `string?` | Relaunch display name (PID 4) |
+| `RelaunchIconResource` | `string?` | Relaunch icon (PID 3) |
+| `ExcludeFromShowInNewInstall` | `bool?` | Hide from "New programs" list (PID 8) |
+| `IsDestListSeparator` | `bool?` | Jump list separator (PID 6) |
+| `IsDestListLink` | `bool?` | Destination list link (PID 7) |
+| `BestShortcut` | `bool?` | Best shortcut flag (PID 10) |
+| `IsDualMode` | `bool?` | Dual mode app flag (PID 11) |
+| `StartPinOption` | `uint?` | Start pin option (PID 12) |
+| `PackageRelativeApplicationID` | `string?` | Package-relative app ID (PID 13) |
+| `HostEnvironment` | `uint?` | Host environment (PID 14) |
+| `PackageFamilyName` | `string?` | Package family name (PID 15) |
+| `PackageFullName` | `string?` | Package full name (PID 16) |
+| `PackageInstallPath` | `string?` | Package install path (PID 17) |
+| `InstalledBy` | `string?` | Installed by (PID 18) |
+| `RecordState` | `uint?` | Record state (PID 19) |
+| `ParentID` | `string?` | Parent ID (PID 20) |
+| `Relevance` | `uint?` | Relevance (PID 21) |
+| `DestListProvidedTitle` | `string?` | Destination list title (PID 22) |
+| `DestListProvidedDescription` | `string?` | Destination list description (PID 23) |
+| `DestListProvidedGroupName` | `string?` | Destination list group name (PID 24) |
+| `DestListLogoUri` | `string?` | Destination list logo URI (PID 25) |
+| `RunFlags` | `uint?` | Run flags (PID 27) |
+| `ActivationContext` | `string?` | Activation context (PID 28) |
+| `VisualElementsManifestHintPath` | `string?` | Visual elements manifest hint path (PID 29) |
+| `ExcludedFromLauncher` | `bool?` | Excluded from launcher (PID 30) |
+| `FeatureOnDemand` | `bool?` | Feature on demand (PID 31) |
+| `TileUniqueId` | `string?` | Tile unique ID (PID 32) |
+
+**System.Link properties** (Format ID: `B9B4B3FC-2B51-4A42-B5D8-324146AFCF25`):
+
+| Property | Type | Description |
+|---|---|---|
+| `TargetParsingPath` | `string?` | Canonical target path (PID 2) |
+| `LinkComment` | `string?` | Link comment (PID 3) |
+| `DateVisited` | `DateTime?` | Date visited (PID 4, VT_FILETIME) |
+| `FeedUrl` | `string?` | Feed URL (PID 5) |
+| `LinkStatus` | `int?` | Link status (PID 6, VT_I4) |
+| `TargetSFGAOFlags` | `uint?` | Shell attributes (PID 8) |
+
+**Other storage properties**:
+
+| Property | Type | Description |
+|---|---|---|
+| `ItemTypeText` | `string?` | System.ItemTypeText |
+| `MimeType` | `string?` | System.MIMEType |
+| `TargetUrl` | `string?` | System.Link.TargetUrl |
+| `TargetExtension` | `string?` | System.Link.TargetExtension |
+| `WinXHash` | `uint?` | WinX Power User Menu hash |
 
 **Named properties** (arbitrary string-keyed name/value pairs):
 
@@ -547,14 +662,24 @@ byte[] lnk = Shortcut.Create(new ShortcutOptions
 var builder = new PropertyStoreBuilder();
 builder.AddNamedStringProperty("CustomKey", "CustomValue")
        .AddNamedUInt32Property("Count", 42)
-       .AddNamedBoolProperty("Enabled", true);
+       .AddNamedBoolProperty("Enabled", true)
+       .AddNamedInt32Property("Status", -1)
+       .AddNamedFileTimeProperty("Timestamp", DateTime.UtcNow);
 ```
 
 | Method | Description |
 |---|---|
-| `AddNamedStringProperty(name, value)` | Add custom string property |
-| `AddNamedUInt32Property(name, value)` | Add custom uint32 property |
-| `AddNamedBoolProperty(name, value)` | Add custom bool property |
+| `AddNamedStringProperty(name, value)` | Named string (VT_LPWSTR) |
+| `AddNamedUInt32Property(name, value)` | Named uint32 (VT_UI4) |
+| `AddNamedBoolProperty(name, value)` | Named bool (VT_BOOL) |
+| `AddNamedInt32Property(name, value)` | Named int32 (VT_I4) |
+| `AddNamedInt16Property(name, value)` | Named int16 (VT_I2) |
+| `AddNamedUInt16Property(name, value)` | Named uint16 (VT_UI2) |
+| `AddNamedInt64Property(name, value)` | Named int64 (VT_I8) |
+| `AddNamedUInt64Property(name, value)` | Named uint64 (VT_UI8) |
+| `AddNamedFileTimeProperty(name, value)` | Named DateTime (VT_FILETIME) |
+| `AddNamedAnsiStringProperty(name, value)` | Named ANSI string (VT_LPSTR) |
+| `AddNamedBlobProperty(name, value)` | Named byte[] (VT_BLOB) |
 
 ### ShortcutSanitizer
 
@@ -567,6 +692,119 @@ ShortcutSanitizer.Sanitize(options);
 // Or sanitize a raw byte array
 byte[] clean = ShortcutSanitizer.SanitizeBytes(File.ReadAllBytes("shortcut.lnk"));
 ```
+
+### PropertyStoreReader
+
+Parses serialized MS-PROPSTORE binary data back into typed entries:
+
+```csharp
+var entries = PropertyStoreReader.Parse(options.PropertyStoreData);
+foreach (var entry in entries)
+{
+    Console.WriteLine($"FormatId={entry.FormatId} PID={entry.PropertyId} Name={entry.Name}");
+    Console.WriteLine($"  VtType={entry.VtType} Value={entry.Value}");
+}
+```
+
+Returns a `List<PropertyStoreEntry>` with each entry containing:
+
+| Property | Type | Description |
+|---|---|---|
+| `FormatId` | `Guid` | Property storage format ID |
+| `PropertyId` | `uint?` | Numeric property ID (null for named properties) |
+| `Name` | `string?` | Property name (null for PID-based properties) |
+| `VtType` | `ushort` | VARIANT type code |
+| `Value` | `object?` | Deserialized value (string, bool, uint, int, Guid, DateTime, etc.) |
+
+Supported VT types: VT_LPWSTR (31), VT_BOOL (11), VT_UI4 (19), VT_I4 (3), VT_CLSID (72), VT_FILETIME (64), VT_I2 (2), VT_UI2 (18), VT_I8 (20), VT_UI8 (21), VT_BLOB (65), VT_LPSTR (30). Unknown types return the raw bytes as `byte[]`.
+
+### WinXHasher
+
+Computes the hash required for Windows 10+ Power User Menu (Win+X) shortcuts:
+
+```csharp
+// Compute hash only
+uint hash = WinXHasher.ComputeHash(@"C:\Windows\System32\cmd.exe");
+
+// With arguments
+uint hash = WinXHasher.ComputeHash(@"C:\Windows\System32\cmd.exe", "/k echo test");
+
+// Build a complete property store with the hash embedded
+byte[] propStore = WinXHasher.BuildPropertyStore(@"C:\Windows\System32\cmd.exe");
+byte[] lnk = Shortcut.Create(new ShortcutOptions
+{
+    Target = @"C:\Windows\System32\cmd.exe",
+    PropertyStoreData = propStore
+});
+
+// Or use PropertyStoreBuilder for more control
+var builder = new PropertyStoreBuilder
+{
+    WinXHash = WinXHasher.ComputeHash(@"C:\test.exe"),
+    AppUserModelId = "MyApp"
+};
+```
+
+### DarwinDescriptor
+
+Decodes MSI (Windows Installer) Darwin descriptor strings from DarwinDataBlock:
+
+```csharp
+var darwin = DarwinDescriptor.TryDecode(options.DarwinData);
+if (darwin != null)
+{
+    Console.WriteLine($"Product: {darwin.ProductCode}");
+    Console.WriteLine($"Feature: {darwin.FeatureId}");
+    Console.WriteLine($"Component: {darwin.ComponentCode}");
+}
+
+// Encode a GUID to MSI compressed format
+string packed = DarwinDescriptor.EncodeCompressedGuid(someGuid);
+```
+
+| Property | Type | Description |
+|---|---|---|
+| `ProductCode` | `Guid` | MSI product code |
+| `FeatureId` | `string` | Feature identifier |
+| `ComponentCode` | `Guid` | MSI component code |
+
+### TrackerData Forensic Methods
+
+Version 1 UUIDs in TrackerData contain embedded MAC addresses and timestamps. These methods extract that forensic information:
+
+```csharp
+var tracker = options.Tracker;
+if (tracker != null && tracker.IsObjectIdVersion1())
+{
+    byte[] mac = tracker.ExtractMacAddress();       // [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
+    string macStr = tracker.ExtractMacAddressString(); // "AA:BB:CC:DD:EE:FF"
+    DateTime? ts = tracker.ExtractTimestamp();       // UTC timestamp from UUID
+
+    // Birth IDs (original machine that created the file)
+    string birthMac = tracker.ExtractBirthMacAddressString();
+    DateTime? birthTs = tracker.ExtractBirthTimestamp();
+}
+```
+
+| Method | Returns | Description |
+|---|---|---|
+| `IsObjectIdVersion1()` | `bool` | True if ObjectId is a Version 1 UUID |
+| `IsBirthObjectIdVersion1()` | `bool` | True if BirthObjectId is a Version 1 UUID |
+| `ExtractMacAddress()` | `byte[]?` | 6-byte MAC from ObjectId (null if not V1) |
+| `ExtractBirthMacAddress()` | `byte[]?` | 6-byte MAC from BirthObjectId |
+| `ExtractMacAddressString()` | `string?` | MAC as "AA:BB:CC:DD:EE:FF" |
+| `ExtractBirthMacAddressString()` | `string?` | Birth MAC as "AA:BB:CC:DD:EE:FF" |
+| `ExtractTimestamp()` | `DateTime?` | UTC timestamp from ObjectId |
+| `ExtractBirthTimestamp()` | `DateTime?` | UTC timestamp from BirthObjectId |
+
+### RawExtraDataBlock
+
+Unrecognized extra data blocks are preserved during round-trips:
+
+| Property | Type | Description |
+|---|---|---|
+| `Signature` | `uint` | Block signature identifier |
+| `Data` | `byte[]` | Raw block payload |
 
 ### DriveTypes
 
@@ -602,7 +840,11 @@ Font family and pitch constants for `ConsoleData.FontFamily`:
 
 Common compatibility shim layer names for `ShortcutOptions.ShimLayerName`:
 
-`WinXPSP3`, `WinXPSP2`, `WinVistaSP2`, `Win7RTM`, `Win8RTM`, `Color256`, `Resolution640x480`, `DisableNXShowUI`, `HighDpiAware`, `DisableThemes`, `RunAsAdmin`, `ForceDirectDrawEmulation`
+**OS compatibility:** `Win95`, `Win98`, `WinNT4SP5`, `Win2000`, `Win2000SP3`, `WinXPSP1`, `WinXPSP2`, `WinXPSP3`, `WinVistaSP1`, `WinVistaSP2`, `Win7RTM`, `Win8RTM`, `Win81RTM`, `Win10RTM`
+
+**Display:** `Color256`, `Resolution640x480`, `ReducedColorMode`, `DisableDWM`, `GdiScalingOff`, `GdiDpiScaling`, `HighDpiAware`, `DpiUnaware`, `PerProcessSystemDpiForceOn`, `PerMonitorV2`
+
+**Behavior:** `DisableNXShowUI`, `DisableThemes`, `RunAsAdmin`, `ForceDirectDrawEmulation`, `ElevateCreateProcess`, `DisableUserCallbackException`
 
 ### Argument Padding
 
