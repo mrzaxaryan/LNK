@@ -39,7 +39,7 @@ Save("04_Notepad_Maximized_Hotkey.lnk", Shortcut.Create(new ShortcutOptions
 {
     Target = @"C:\Windows\System32\notepad.exe",
     WindowStyle = ShortcutWindowStyle.Maximized,
-    HotkeyKey = 0x54,
+    HotkeyKey = VirtualKeys.T,
     HotkeyModifiers = HotkeyModifiers.Control | HotkeyModifiers.Alt
 }));
 
@@ -137,7 +137,7 @@ Save("13_LinkInfo_Local.lnk", Shortcut.Create(new ShortcutOptions
         Local = new LocalPathInfo
         {
             BasePath = @"C:\Windows\System32\cmd.exe",
-            DriveType = 3,
+            DriveType = DriveTypes.Fixed,
             DriveSerialNumber = 0x1234ABCD,
             VolumeLabel = "Windows"
         }
@@ -184,7 +184,7 @@ Save("16_Tracker.lnk", Shortcut.Create(new ShortcutOptions
 Save("17_SpecialFolder.lnk", Shortcut.Create(new ShortcutOptions
 {
     Target = @"C:\Windows\notepad.exe",
-    SpecialFolder = new SpecialFolderData { FolderId = 0x0024 }
+    SpecialFolder = new SpecialFolderData { FolderId = CsidlFolderIds.Windows }
 }));
 
 // 18. Icon with environment variable path
@@ -211,7 +211,7 @@ Save("20_AllFeatures.lnk", Shortcut.Create(new ShortcutOptions
     IconLocation = @"C:\Windows\notepad.exe",
     WindowStyle = ShortcutWindowStyle.Maximized,
     RunAsAdmin = true,
-    HotkeyKey = 0x54,
+    HotkeyKey = VirtualKeys.T,
     HotkeyModifiers = HotkeyModifiers.Control | HotkeyModifiers.Alt,
     UseUnicode = true,
     CreationTime = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -227,7 +227,7 @@ Save("20_AllFeatures.lnk", Shortcut.Create(new ShortcutOptions
         }
     },
     KnownFolder = new KnownFolderData { FolderId = KnownFolderIds.Windows },
-    SpecialFolder = new SpecialFolderData { FolderId = 0x0024 },
+    SpecialFolder = new SpecialFolderData { FolderId = CsidlFolderIds.Windows },
     Tracker = new TrackerData
     {
         MachineId = "MYPC",
@@ -272,7 +272,7 @@ Save("23_Darwin.lnk", Shortcut.Create(new ShortcutOptions
 Save("24_ShimLayer.lnk", Shortcut.Create(new ShortcutOptions
 {
     Target = @"C:\OldApp\setup.exe",
-    ShimLayerName = "WINXP"
+    ShimLayerName = ShimLayerNames.WinXPSP3
 }));
 
 // 25. FileAttributes override (hidden + system)
@@ -306,4 +306,46 @@ Save("27_Network_Enhanced.lnk", Shortcut.Create(new ShortcutOptions
     }
 }));
 
-Console.WriteLine($"\nDone! 27 .lnk files generated.");
+// 28. PropertyStore with named properties
+var psb2 = new PropertyStoreBuilder
+{
+    AppUserModelId = "ShortcutLib.NamedProps",
+    TargetParsingPath = @"C:\Windows\notepad.exe",
+    ItemTypeText = "Application"
+};
+psb2.AddNamedStringProperty("CustomTag", "SampleValue");
+Save("28_NamedPropertyStore.lnk", Shortcut.Create(new ShortcutOptions
+{
+    Target = @"C:\Windows\notepad.exe",
+    PropertyStoreData = psb2.Build()
+}));
+
+// 29. Sanitized shortcut (tracker and property store stripped)
+var withMetadata = Shortcut.Create(new ShortcutOptions
+{
+    Target = @"C:\Windows\notepad.exe",
+    Description = "Sanitized shortcut",
+    Tracker = new TrackerData
+    {
+        MachineId = "SECRETPC",
+        VolumeId = Guid.NewGuid(),
+        ObjectId = Guid.NewGuid()
+    },
+    PropertyStoreData = new PropertyStoreBuilder { AppUserModelId = "Leaked.Id" }.Build()
+});
+Save("29_Sanitized.lnk", ShortcutSanitizer.SanitizeBytes(withMetadata));
+
+// 30. Console with named color constants
+Save("30_Console_Colors.lnk", Shortcut.Create(new ShortcutOptions
+{
+    Target = @"C:\Windows\System32\cmd.exe",
+    Console = new ConsoleData
+    {
+        FillAttributes = (ushort)(ConsoleFillAttributes.ForegroundRed | ConsoleFillAttributes.ForegroundIntensity
+                        | ConsoleFillAttributes.BackgroundBlue),
+        FontFamily = ConsoleFontFamilies.Modern | ConsoleFontFamilies.TrueType,
+        FaceName = "Consolas"
+    }
+}));
+
+Console.WriteLine($"\nDone! 30 .lnk files generated.");

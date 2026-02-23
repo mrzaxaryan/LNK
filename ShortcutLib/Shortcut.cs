@@ -116,7 +116,7 @@ public static class Shortcut
             Local = new LocalPathInfo
             {
                 BasePath = target,
-                DriveType = existing?.Local?.DriveType ?? 3, // DRIVE_FIXED
+                DriveType = existing?.Local?.DriveType ?? DriveTypes.Fixed,
                 DriveSerialNumber = existing?.Local?.DriveSerialNumber ?? 0,
                 VolumeLabel = existing?.Local?.VolumeLabel ?? ""
             }

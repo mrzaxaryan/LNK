@@ -22,8 +22,8 @@ public sealed class LinkInfo
 /// <summary>Local volume and base path for LinkInfo.</summary>
 public sealed class LocalPathInfo
 {
-    /// <summary>Volume drive type (e.g., DRIVE_FIXED = 3).</summary>
-    public uint DriveType { get; set; } = 3;
+    /// <summary>Volume drive type. See <see cref="DriveTypes"/> for constants.</summary>
+    public uint DriveType { get; set; } = DriveTypes.Fixed;
 
     /// <summary>Volume serial number.</summary>
     public uint DriveSerialNumber { get; set; }
