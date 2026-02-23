@@ -1,4 +1,4 @@
-namespace LNKLib;
+namespace ShortcutLib;
 
 public static class Shortcut
 {

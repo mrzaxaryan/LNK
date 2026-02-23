@@ -1,4 +1,4 @@
-# LNKLib
+# ShortcutLib
 
 A zero-dependency .NET library for creating Windows Shell Link (.lnk) shortcut files in memory.
 
@@ -22,10 +22,10 @@ A zero-dependency .NET library for creating Windows Shell Link (.lnk) shortcut f
 
 ## Installation
 
-Add a reference to the `LNKLib` project or install the NuGet package:
+Add a reference to the `ShortcutLib` project or install the NuGet package:
 
 ```
-dotnet add package LNKLib
+dotnet add package ShortcutLib
 ```
 
 ## Usage
@@ -33,7 +33,7 @@ dotnet add package LNKLib
 ### Simple API (parameter overload)
 
 ```csharp
-using LNKLib;
+using ShortcutLib;
 
 // Simple file shortcut
 byte[] lnk = Shortcut.Create(@"C:\Windows\notepad.exe");
@@ -79,7 +79,7 @@ byte[] lnk = Shortcut.Create(
 For advanced features (Unicode, timestamps, LinkInfo, extra data blocks), use the `ShortcutOptions` overload:
 
 ```csharp
-using LNKLib;
+using ShortcutLib;
 
 // Unicode strings with timestamps and file metadata
 byte[] lnk = Shortcut.Create(new ShortcutOptions

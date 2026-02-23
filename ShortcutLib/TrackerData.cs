@@ -1,4 +1,4 @@
-namespace LNKLib;
+namespace ShortcutLib;
 
 /// <summary>
 /// Data for TrackerDataBlock (signature 0xA0000003).

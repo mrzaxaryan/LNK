@@ -1,8 +1,8 @@
-using LNKLib.Tests.Helpers;
+using ShortcutLib.Tests.Helpers;
 using System.Text;
 using Xunit;
 
-namespace LNKLib.Tests;
+namespace ShortcutLib.Tests;
 
 public class ShortcutTests
 {

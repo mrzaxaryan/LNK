@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace LNKLib;
+namespace ShortcutLib;
 
 internal static class IdListWriter
 {

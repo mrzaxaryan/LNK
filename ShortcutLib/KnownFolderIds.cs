@@ -1,4 +1,4 @@
-namespace LNKLib;
+namespace ShortcutLib;
 
 /// <summary>
 /// Well-known folder GUIDs (KNOWNFOLDERID) for use with KnownFolderDataBlock.

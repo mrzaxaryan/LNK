@@ -1,4 +1,4 @@
-namespace LNKLib;
+namespace ShortcutLib;
 
 /// <summary>
 /// Describes the target's location information per [MS-SHLLINK] 2.3.

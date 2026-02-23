@@ -1,4 +1,4 @@
-namespace LNKLib;
+namespace ShortcutLib;
 
 internal sealed class TargetPathInfo
 {

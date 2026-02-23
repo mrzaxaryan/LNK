@@ -1,4 +1,4 @@
-namespace LNKLib;
+namespace ShortcutLib;
 
 /// <summary>
 /// Modifier keys for a shortcut hotkey combination.

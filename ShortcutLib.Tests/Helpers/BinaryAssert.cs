@@ -1,4 +1,4 @@
-namespace LNKLib.Tests.Helpers;
+namespace ShortcutLib.Tests.Helpers;
 
 internal static class BinaryAssert
 {

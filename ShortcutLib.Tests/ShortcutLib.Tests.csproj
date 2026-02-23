@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\LNKLib\LNKLib.csproj" />
+    <ProjectReference Include="..\ShortcutLib\ShortcutLib.csproj" />
   </ItemGroup>
 
 </Project>

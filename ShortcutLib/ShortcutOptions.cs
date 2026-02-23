@@ -1,4 +1,4 @@
-namespace LNKLib;
+namespace ShortcutLib;
 
 /// <summary>
 /// Configuration for creating a Windows Shell Link (.lnk) file.

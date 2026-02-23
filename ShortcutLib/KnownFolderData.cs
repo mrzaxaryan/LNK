@@ -1,4 +1,4 @@
-namespace LNKLib;
+namespace ShortcutLib;
 
 /// <summary>
 /// Data for KnownFolderDataBlock (signature 0xA000000B).

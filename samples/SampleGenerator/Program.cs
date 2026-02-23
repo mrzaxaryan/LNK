@@ -1,4 +1,4 @@
-using LNKLib;
+using ShortcutLib;
 
 var outputDir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "output");
 Directory.CreateDirectory(outputDir);
@@ -147,12 +147,12 @@ Save("13_LinkInfo_Local.lnk", Shortcut.Create(new ShortcutOptions
 // 14. LinkInfo (network share)
 Save("14_LinkInfo_Network.lnk", Shortcut.Create(new ShortcutOptions
 {
-    Target = @"\\fileserver\shared\report.xlsx",
+    Target = @"\\dlp-test.com\WebDAV\report.xlsx",
     LinkInfo = new LinkInfo
     {
         Network = new NetworkPathInfo
         {
-            ShareName = @"\\fileserver\shared",
+            ShareName = @"\\dlp-test.com\WebDAV",
             CommonPathSuffix = "report.xlsx"
         }
     }
