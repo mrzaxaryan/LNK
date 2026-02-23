@@ -19,7 +19,8 @@ public static class Shortcut
         ArgumentException.ThrowIfNullOrEmpty(options.Target, nameof(options.Target));
 
         var pathInfo = TargetPathInfo.Parse(options.Target, options.IsPrinterLink);
-        int linkFlags = ComputeFlags(options);
+        var linkInfo = BuildLinkInfo(options.Target, pathInfo, options.LinkInfo);
+        int linkFlags = ComputeFlags(options, linkInfo);
 
         using var ms = new MemoryStream();
         using var writer = new BinaryWriter(ms);
@@ -28,8 +29,7 @@ public static class Shortcut
         IdListWriter.Write(writer, pathInfo);
         writer.Write(new byte[2]); // TerminalID
 
-        if (options.LinkInfo != null)
-            ExtraDataBlockWriter.WriteLinkInfo(writer, options.LinkInfo);
+        ExtraDataBlockWriter.WriteLinkInfo(writer, linkInfo);
 
         WriteStringData(writer, options);
         WriteExtraDataBlocks(writer, options);
@@ -39,14 +39,14 @@ public static class Shortcut
         return ms.ToArray();
     }
 
-    private static int ComputeFlags(ShortcutOptions options)
+    private static int ComputeFlags(ShortcutOptions options, LinkInfo? linkInfo)
     {
         int flagEnv = options.Target.Contains("%")
             ? LinkFlags.HasExpSz | LinkFlags.PreferEnvironmentPath
             : 0;
 
         return LinkFlags.HasLinkTargetIdList
-            | (options.LinkInfo != null ? LinkFlags.HasLinkInfo : 0)
+            | (linkInfo != null ? LinkFlags.HasLinkInfo : 0)
             | (options.Description != null ? LinkFlags.HasName : 0)
             | (options.RelativePath != null ? LinkFlags.HasRelativePath : 0)
             | (options.WorkingDirectory != null ? LinkFlags.HasWorkingDir : 0)
@@ -55,6 +55,47 @@ public static class Shortcut
             | (options.UseUnicode ? LinkFlags.IsUnicode : 0)
             | (options.RunAsAdmin ? LinkFlags.RunAsUser : 0)
             | flagEnv;
+    }
+
+    private static LinkInfo BuildLinkInfo(string target, TargetPathInfo pathInfo, LinkInfo? existing)
+    {
+        if (pathInfo.IsNetworkLink)
+        {
+            // Split UNC path into share root and suffix
+            // e.g. \\server\share\docs\file.txt → ShareName=\\server\share, Suffix=docs\file.txt
+            int thirdSlash = target.IndexOf('\\', 2);
+            if (thirdSlash < 0)
+            {
+                return new LinkInfo
+                {
+                    Network = new NetworkPathInfo { ShareName = target }
+                };
+            }
+
+            int fourthSlash = target.IndexOf('\\', thirdSlash + 1);
+            string shareName = fourthSlash < 0 ? target : target.Substring(0, fourthSlash);
+            string suffix = fourthSlash < 0 ? "" : target.Substring(fourthSlash + 1);
+
+            return new LinkInfo
+            {
+                Network = new NetworkPathInfo
+                {
+                    ShareName = shareName,
+                    CommonPathSuffix = suffix
+                }
+            };
+        }
+
+        return new LinkInfo
+        {
+            Local = new LocalPathInfo
+            {
+                BasePath = target,
+                DriveType = existing?.Local?.DriveType ?? 3, // DRIVE_FIXED
+                DriveSerialNumber = existing?.Local?.DriveSerialNumber ?? 0,
+                VolumeLabel = existing?.Local?.VolumeLabel ?? ""
+            }
+        };
     }
 
     private static void WriteHeader(BinaryWriter writer, ShortcutOptions options, int linkFlags, TargetPathInfo pathInfo)

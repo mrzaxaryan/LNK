@@ -272,7 +272,7 @@ public class ShortcutOptionsTests
     }
 
     [Fact]
-    public void Create_WithoutLinkInfo_ClearsFlag()
+    public void Create_WithoutLinkInfo_AutoGeneratesLinkInfo()
     {
         byte[] result = Shortcut.Create(new ShortcutOptions
         {
@@ -280,7 +280,7 @@ public class ShortcutOptionsTests
         });
 
         uint linkFlags = BitConverter.ToUInt32(result, 20);
-        Assert.True((linkFlags & 0x00000002) == 0, "HasLinkInfo flag should not be set");
+        Assert.True((linkFlags & 0x00000002) != 0, "HasLinkInfo flag should be set (auto-generated)");
     }
 
     [Fact]
